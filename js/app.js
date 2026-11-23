@@ -271,8 +271,37 @@
   }
   function headcountCard() {
     var c = counts(), total = st.data.people.length - c.tr;
-    return '<section class="card" style="gap:6px"><div style="font-size:13px;color:#8A857C">กำลังพลทั้งหมด</div><div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:\'Noto Serif Thai\',serif;font-size:40px;font-weight:600;line-height:1.1">' + total + '</span><span style="font-size:15px;color:#5D5A54">นาย</span></div>' +
-      '<div style="font-size:13px;color:#5D5A54;line-height:1.7">' + countLine(c) + '</div></section>';
+    return '<section class="card" style="gap:12px"><div style="font-size:13px;color:#8A857C">กำลังพลทั้งหมด</div><div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:\'Noto Serif Thai\',serif;font-size:40px;font-weight:600;line-height:1.1">' + total + '</span><span style="font-size:15px;color:#5D5A54">นาย</span></div>' + countTiles() +
+      '<div style="font-size:12px;color:#8A857C;line-height:1.6">ยอดรวม = สิบเวร + ผช. + ชรก. + LTC + มีภารกิจ (ไม่รวมปรับย้ายแล้ว) · ลาและลากิจนับซ้อนกับส่วนอื่น ไม่ถูกรวมในยอด</div></section>';
+  }
+  function countTiles() {
+    var t = todayAbsInfo(), todayIso = iso(t.y, t.m, t.d);
+    var c = counts();
+    var green = st.data.people.filter(function (p) { return p.section === 'rot' && !p.core && isGreen(p); }).length;
+    var white = c.rot - green;
+    function onLeave(type) {
+      var now = {}, all = {};
+      st.data.leaves.forEach(function (l) {
+        if (l.type !== type) return;
+        all[l.key] = 1;
+        if (l.from <= todayIso && l.to >= todayIso) now[l.key] = 1;
+      });
+      return { now: Object.keys(now).length, all: Object.keys(all).length };
+    }
+    var lv = onLeave('ลา'), bz = onLeave('ลากิจ');
+    var defs = [
+      ['สิบเวร (สว.)', white, '#F9D6D6', '#7C1A1A', 'หมุนเวียน'],
+      ['ผช.น.เวร (สว./ผช.)', green, '#CDE8D6', '#17492B', 'หมุนเวียน'],
+      ['ชรก.', c.ch, '#F6E7D8', '#6B3F1E', ''],
+      ['LTC', c.ltc, '#E6E0F4', '#3E2F7A', ''],
+      ['มีภารกิจ', c.mis, '#D8E8F8', '#123F6B', ''],
+      ['ปรับย้ายแล้ว', c.tr, '#EFE9DF', '#4F4C46', 'ไม่รวมในยอด'],
+      ['ลา', lv.now, '#E9E5DC', '#4F4C46', 'กำลังลาวันนี้ · ทั้งหมด ' + lv.all + ' คน'],
+      ['ลากิจ', bz.now, '#F3E6C8', '#6B4E0B', 'กำลังลากิจวันนี้ · ทั้งหมด ' + bz.all + ' คน']
+    ];
+    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">' + defs.map(function (d) {
+      return '<div style="background:' + d[2] + ';color:' + d[3] + ';border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0"><div style="font-size:12px;line-height:1.3;opacity:.9">' + d[0] + '</div><div style="font-family:\'Noto Serif Thai\',serif;font-size:24px;font-weight:600;line-height:1.15">' + d[1] + ' <span style="font-size:13px;font-family:inherit;font-weight:500">นาย</span></div>' + (d[4] ? '<div style="font-size:11px;line-height:1.3;opacity:.8">' + d[4] + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
   }
   function countLine(c) { return 'หมุนเวียน ' + c.rot + ' · ชรก. ' + c.ch + ' · LTC ' + c.ltc + ' · มีภารกิจ ' + c.mis + ' · ปรับย้ายแล้ว ' + c.tr; }
   function listCard(title, items, withSub) {
@@ -450,7 +479,7 @@
     var f = st.form;
     var h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 6px"><span style="font-size:13px;color:#8A857C">เข้าสู่ระบบแอดมินอยู่ · <span id="savemsg">' + esc(st.saveMsg) + '</span></span><button type="button" class="del" style="color:#5D5A54" data-act="logout">ออกจากระบบ</button></div>';
     h += '<section class="card"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">ตรวจยอดกำลังพล</h2><div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:\'Noto Serif Thai\',serif;font-size:40px;font-weight:600;line-height:1.1">' + total + '</span><span style="font-size:15px;color:#5D5A54">นาย ในระบบ</span></div>' +
-      '<div style="font-size:13px;color:#5D5A54;line-height:1.7">' + countLine(c) + '</div><div style="display:flex;flex-direction:column;gap:6px"><label for="tg" style="font-size:14px;font-weight:500;color:#5D5A54">ยอดกำลังพลที่ถูกต้อง</label><input id="tg" class="fld" type="number" inputmode="numeric" value="' + esc(st.data.config.target) + '"></div>' +
+      countTiles() + '<div style="display:flex;flex-direction:column;gap:6px"><label for="tg" style="font-size:14px;font-weight:500;color:#5D5A54">ยอดกำลังพลที่ถูกต้อง</label><input id="tg" class="fld" type="number" inputmode="numeric" value="' + esc(st.data.config.target) + '"></div>' +
       '<span class="chip ' + (ok ? 'ok' : 'warn') + '" style="align-self:flex-start">' + diff + '</span></section>';
     // ลา
     var summ = leaveSummary();
