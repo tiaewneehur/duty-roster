@@ -160,15 +160,18 @@
     var t = todayAbsInfo();
     var h = '<div style="width:max-content;min-width:100%"><div class="hd" style="' + cols + '"><div class="hdname">ชื่อ</div>';
     for (var d = 1; d <= M.N; d++) {
-      var cls = 'dh' + (isTodayIn(M, d) ? ' today' : '') + (d === Math.min(st.sel, M.N) ? ' sel' : '');
+      var wdn = M.wd(d);
+      var cls = 'dh' + (wdn === 0 ? ' sun' : (wdn === 6 ? ' sat' : '')) + (isTodayIn(M, d) ? ' today' : '') + (d === Math.min(st.sel, M.N) ? ' sel' : '');
       h += '<button type="button" class="' + cls + '" data-act="day" data-v="' + d + '" aria-label="เลือกวันที่ ' + d + '"><span>' + WD[M.wd(d)] + '</span><b>' + d + '</b></button>';
     }
     h += '</div>';
     M.rows.forEach(function (id, i) {
       var isCore = E.CORE.indexOf(id) >= 0;
-      if (i === 0 && isCore) h += '<div class="lbl">ชุดสลับ 2 วัน เว้น 2 วัน</div>';
-      if (!isCore && (i === 0 || E.CORE.indexOf(M.rows[i - 1]) >= 0)) h += '<div class="lbl">หมุนเวียนตามลำดับรายชื่อ</div>';
-      var rc = 'row' + (matched.length ? (matched.indexOf(id) >= 0 ? ' hit' : ' dim') : '');
+      if (i === 0 && isCore) h += '<div class="lbl" style="color:#123F6B"><i style="background:#8DB8E3"></i>ชุดสลับ 2 วัน เว้น 2 วัน</div>';
+      if (!isCore && (i === 0 || E.CORE.indexOf(M.rows[i - 1]) >= 0)) h += '<div class="lbl" style="color:#7C1A1A"><i style="background:#E8A3A3"></i>หมุนเวียนตามลำดับรายชื่อ <span style="color:#17492B;display:inline-flex;align-items:center;gap:6px;margin-left:8px"><i style="background:#8CC7A0"></i>จ.ส.ต.</span></div>';
+      var pp = person(id);
+      var kind = isCore ? 'k-core' : (pp && isGreen(pp) ? 'k-g' : 'k-w');
+      var rc = 'row ' + kind + (matched.length ? (matched.indexOf(id) >= 0 ? ' hit' : ' dim') : '');
       var pn = parts(id);
       h += '<div class="' + rc + '" style="' + cols + '"><div class="nmcell"><span style="font-size:14px;font-weight:600;line-height:1.25">' + esc(pn.first) + '</span><span style="font-size:11px;color:#8A857C;line-height:1.25">' + esc(nm(id)) + '</span></div>';
       for (var dd = 1; dd <= M.N; dd++) {
