@@ -324,7 +324,8 @@
     var out = {};
     M.rows.forEach(function (id) {
       var o = { sv: 0, sp: 0, bk: 0, lv: 0 };
-      for (var d = 1; d <= M.N; d++) {
+      var t0 = todayAbsInfo(), lim = M.key < t0.key ? M.N : (M.key === t0.key ? Math.min(t0.d, M.N) : 0);
+      for (var d = 1; d <= lim; d++) {
         var r = M.roleOf(id, d);
         if (r === 'sv') o.sv++; else if (r === 'sp') o.sp++; else if (r === 'bk') o.bk++; else if (r === 'lv' || r === 'bz') o.lv++;
       }
@@ -374,7 +375,7 @@
     if (!plist.length) h += '<div style="font-size:14px;color:#8A857C">ยังไม่มีข้อมูล</div>';
     plist.forEach(function (x) {
       var pn = parts(x.id), pc = function (n) { return (n / mx * 100).toFixed(1); };
-      h += '<div style="display:flex;flex-direction:column;gap:5px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.3"><b>' + esc(pn.first) + '</b> <span style="font-size:12px;color:#8A857C">' + esc((pn.rank + ' ' + pn.last).trim()) + '</span></div><div style="font-size:14px;font-weight:600;white-space:nowrap">' + x.total + ' ครั้ง</div></div>' +
+      h += '<div style="display:flex;flex-direction:column;gap:5px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.3">' + (pn.rank ? '<span style="font-size:12px;color:#8A857C">' + esc(pn.rank) + '</span> ' : '') + '<b>' + esc(pn.first) + '</b> ' + esc(pn.last) + '</div><div style="font-size:14px;font-weight:600;white-space:nowrap">' + x.total + ' ครั้ง</div></div>' +
         '<div style="display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1ECE4"><span style="width:' + pc(x.sv) + '%;background:#E8A3A3"></span><span style="width:' + pc(x.sp) + '%;background:#8CC7A0"></span></div>' +
         (x.lv > 0 ? '<div style="font-size:12px;color:#8A857C">ลา ' + x.lv + ' วัน</div>' : '') + '</div>';
     });
@@ -397,7 +398,7 @@
     });
     h += leaveStatsHtml(st.statM === 'all' ? null : st.model[st.statM]);
     h += '<section class="card"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">เวรที่กำลังจะถึง</h2>' + up.join('') + '</section>';
-    h += '<footer style="font-size:12px;color:#8A857C;line-height:1.6;padding:0 8px">นับเฉพาะคนในลิสต์หมุนเวียน ไม่รวมชุดสลับ 4 คน · ก.ย.–ต.ค. ยังไม่รวม</footer>';
+    h += '<footer style="font-size:12px;color:#8A857C;line-height:1.6;padding:0 8px">นับเฉพาะวันที่ผ่านมาแล้วถึงวันนี้ ไม่นับล่วงหน้า · เฉพาะคนในลิสต์หมุนเวียน ไม่รวมชุดสลับ 4 คน</footer>';
     return h;
   }
 
