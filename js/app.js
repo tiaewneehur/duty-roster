@@ -10,7 +10,7 @@
   var st = {
     data: null, model: null, tab: 'view', mkey: null, sel: 1, q: '', statM: 'all',
     token: null, adminErr: '', busy: false, saveMsg: '',
-    form: { leaveKey: '', leaveType: 'ลา', from: '', to: '', nName: '', nDest: 'rotw', nErr: '', pick: { tr: '', ch: '', ltc: '', mis: '' }, trNote: '', oldPw: '', newPw: '', pwMsg: '' }
+    form: { leaveKeys: [], lvq: '', leaveType: 'ลา', from: '', to: '', nName: '', nDest: 'rotw', nErr: '', pick: { tr: '', ch: '', ltc: '', mis: '' }, trNote: '', oldPw: '', newPw: '', pwMsg: '' }
   };
   try { st.token = sessionStorage.getItem('dr_token') || null; } catch (e) {}
 
@@ -355,6 +355,48 @@
   function opt(items, sel, ph) {
     return '<option value="">' + ph + '</option>' + items.map(function (o) { return '<option value="' + esc(o.id) + '"' + (o.id === sel ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('');
   }
+  /* ----- เลือกคนลา (หลายคน ทุกส่วน) ----- */
+  function groupOf(p) {
+    if (p.core) return 'ชุดสลับ 4 คน';
+    if (p.section === 'rot') return isGreen(p) ? 'ผช. (จ.ส.ต. ขึ้นไป)' : 'หมุนเวียนสิบเวร (ทั่วไป)';
+    return SEC_LABEL[p.section];
+  }
+  var GROUP_ORDER = ['ชุดสลับ 4 คน', 'หมุนเวียนสิบเวร (ทั่วไป)', 'ผช. (จ.ส.ต. ขึ้นไป)', 'ชรก.', 'LTC', 'มีภารกิจ', 'ปรับย้าย'];
+  function lvListHtml() {
+    var q = (st.form.lvq || '').trim(), groups = {};
+    st.data.people.slice().sort(function (a, b) { return (+a.ord) - (+b.ord); }).forEach(function (p) {
+      if (q && p.name.indexOf(q) < 0) return;
+      (groups[groupOf(p)] = groups[groupOf(p)] || []).push(p);
+    });
+    var h = '';
+    GROUP_ORDER.forEach(function (g) {
+      if (!groups[g]) return;
+      h += '<div style="font-size:12px;color:#8A857C;padding:10px 0 4px;letter-spacing:.02em">' + g + ' · ' + groups[g].length + '</div>';
+      groups[g].forEach(function (p) {
+        var on = st.form.leaveKeys.indexOf(p.key) >= 0;
+        h += '<label style="display:flex;align-items:center;gap:12px;min-height:44px;font-size:15px;cursor:pointer"><input type="checkbox" data-lk="' + esc(p.key) + '"' + (on ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#8C5A45;flex:none"><span>' + esc(p.name) + '</span></label>';
+      });
+    });
+    return h || '<div style="padding:14px 0;font-size:14px;color:#8A857C">ไม่พบชื่อที่ค้นหา</div>';
+  }
+  function selCountText() {
+    var n = st.form.leaveKeys.length;
+    return n ? 'เลือกแล้ว ' + n + ' คน' : 'ยังไม่ได้เลือกชื่อ';
+  }
+  function leaveValid() { var f = st.form; return f.leaveKeys.length > 0 && f.from && f.to && f.to >= f.from; }
+  function leaveSummary() {
+    var f = st.form, n = f.leaveKeys.length;
+    if (f.from && f.to && f.to < f.from) return 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม';
+    if (!leaveValid()) return 'เลือกชื่อ ประเภท และช่วงวันที่';
+    var who = n === 1 ? nm(f.leaveKeys[0]) : n + ' คน';
+    return who + ' · ' + f.leaveType + ' ' + (Math.round((Date.parse(f.to) - Date.parse(f.from)) / 864e5) + 1) + ' วัน (' + thDate(f.from) + (f.to > f.from ? ' – ' + thDate(f.to) : '') + ')';
+  }
+  function paintLeaveForm() {
+    var c = $('#lvsel'), sm = $('#lvsum'), bt = $('#lvadd');
+    if (c) c.textContent = selCountText();
+    if (sm) sm.textContent = leaveSummary();
+    if (bt) bt.disabled = !leaveValid();
+  }
   function adminHtml() {
     var c = counts(), total = st.data.people.length - c.tr, tgt = parseInt(st.data.config.target, 10);
     var diff = 'ใส่ยอดกำลังพลที่ถูกต้อง', ok = false;
@@ -365,17 +407,14 @@
       '<div style="font-size:13px;color:#5D5A54;line-height:1.7">' + countLine(c) + '</div><div style="display:flex;flex-direction:column;gap:6px"><label for="tg" style="font-size:14px;font-weight:500;color:#5D5A54">ยอดกำลังพลที่ถูกต้อง</label><input id="tg" class="fld" type="number" inputmode="numeric" value="' + esc(st.data.config.target) + '"></div>' +
       '<span class="chip ' + (ok ? 'ok' : 'warn') + '" style="align-self:flex-start">' + diff + '</span></section>';
     // ลา
-    var opts = E.CORE.concat(bySec('rot', function (p) { return !!p.queue; }).map(function (p) { return p.key; })).filter(function (k) { return person(k); }).map(function (k) { return { id: k, label: nm(k) }; });
-    var valid = f.leaveKey && f.from && f.to && f.to >= f.from;
-    var summ = 'เลือกชื่อ ประเภท และช่วงวันที่';
-    if (valid) summ = nm(f.leaveKey) + ' · ' + f.leaveType + ' ' + (Math.round((Date.parse(f.to) - Date.parse(f.from)) / 864e5) + 1) + ' วัน (' + thDate(f.from) + (f.to > f.from ? ' – ' + thDate(f.to) : '') + ')';
-    else if (f.from && f.to && f.to < f.from) summ = 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม';
+    var summ = leaveSummary();
+    var valid = leaveValid();
     h += '<section class="card" style="gap:16px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">เพิ่มวันลา</h2><div style="margin-top:4px;font-size:13px;line-height:1.5;color:#8A857C">ระบบจะตัดชื่อออกจากคิวตลอดช่วงลา แล้วนำกลับเข้าคิวเป็นคนแรกเมื่อครบกำหนด</div></div>' +
-      '<div style="display:flex;flex-direction:column;gap:6px"><label for="fp" style="font-size:14px;font-weight:500;color:#5D5A54">ชื่อ</label><select id="fp" class="fld">' + opt(opts, f.leaveKey, 'เลือกชื่อ') + '</select></div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px"><label for="lvq" style="font-size:14px;font-weight:500;color:#5D5A54">เลือกชื่อ (เลือกได้หลายคน ทุกส่วน)</label><input id="lvq" class="fld" type="text" placeholder="พิมพ์ค้นหาชื่อ" value="' + esc(f.lvq) + '" autocomplete="off"><div id="lvsel" style="font-size:13px;color:#8C5A45">' + selCountText() + '</div><div id="lvlist" style="max-height:280px;overflow-y:auto;border:1px solid #E3DCCF;border-radius:16px;padding:4px 12px">' + lvListHtml() + '</div></div>' +
       '<div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:500;color:#5D5A54">ประเภท</span><div style="display:flex;gap:8px"><button type="button" class="ty' + (f.leaveType === 'ลา' ? ' on' : '') + '" data-act="ltype" data-v="ลา">ลา</button><button type="button" class="ty' + (f.leaveType === 'ลากิจ' ? ' on' : '') + '" data-act="ltype" data-v="ลากิจ">ลากิจ</button></div></div>' +
       '<div style="display:flex;gap:12px"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><label for="ff" style="font-size:14px;font-weight:500;color:#5D5A54">ตั้งแต่วันที่</label><input id="ff" class="fld" type="date" value="' + esc(f.from) + '" min="2026-12-01"></div>' +
       '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><label for="ft" style="font-size:14px;font-weight:500;color:#5D5A54">ถึงวันที่</label><input id="ft" class="fld" type="date" value="' + esc(f.to) + '" min="2026-12-01"></div></div>' +
-      '<div style="font-size:14px;color:#5D5A54;background:#F4EAE2;border-radius:14px;padding:10px 14px;line-height:1.5">' + esc(summ) + '</div><button type="button" class="btn" data-act="addleave"' + (valid ? '' : ' disabled') + '>เพิ่มรายการ</button></section>';
+      '<div id="lvsum" style="font-size:14px;color:#5D5A54;background:#F4EAE2;border-radius:14px;padding:10px 14px;line-height:1.5">' + esc(summ) + '</div><button type="button" id="lvadd" class="btn" data-act="addleave"' + (valid ? '' : ' disabled') + '>เพิ่มรายการ</button></section>';
     // รายการลา
     h += '<section style="display:flex;flex-direction:column;gap:10px"><h2 style="margin:0 0 0 6px;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">รายการลา</h2>';
     if (!st.data.leaves.length) h += '<div style="background:#fff;border-radius:20px;padding:18px;font-size:14px;color:#8A857C;line-height:1.5;box-shadow:0 4px 18px rgba(60,40,20,.05)">ยังไม่มีรายการลา</div>';
@@ -433,7 +472,13 @@
     };
     var pw = $('#pw'); if (pw) pw.onkeydown = function (e) { if (e.key === 'Enter') doLogin(); };
     var tg = $('#tg'); if (tg) tg.onchange = function () { st.data.config.target = parseInt(tg.value, 10) || 0; render(); persist(); };
-    var fp = $('#fp'); if (fp) fp.onchange = function () { st.form.leaveKey = fp.value; render(); };
+    var lvq = $('#lvq'); if (lvq) lvq.oninput = function () { st.form.lvq = lvq.value; $('#lvlist').innerHTML = lvListHtml(); };
+    var lvl = $('#lvlist'); if (lvl) lvl.onchange = function (e) {
+      var k = e.target.getAttribute('data-lk'); if (!k) return;
+      var arr = st.form.leaveKeys, i = arr.indexOf(k);
+      if (e.target.checked && i < 0) arr.push(k); else if (!e.target.checked && i >= 0) arr.splice(i, 1);
+      paintLeaveForm();
+    };
     var ff = $('#ff'); if (ff) ff.onchange = function () { st.form.from = ff.value; if (!st.form.to || st.form.to < ff.value) st.form.to = ff.value; render(); };
     var ft = $('#ft'); if (ft) ft.onchange = function () { st.form.to = ft.value; render(); };
     var nn = $('#nn'); if (nn) nn.oninput = function () { st.form.nName = nn.value; st.form.nErr = ''; };
@@ -454,8 +499,12 @@
     else if (a === 'logout') doLogout();
     else if (a === 'ltype') { f.leaveType = v; render(); }
     else if (a === 'addleave') {
-      if (!(f.leaveKey && f.from && f.to && f.to >= f.from)) return;
-      mutate(function () { st.data.leaves.push({ id: 'l' + Date.now().toString(36), key: f.leaveKey, type: f.leaveType, from: f.from, to: f.to }); f.from = ''; f.to = ''; f.leaveKey = ''; }, 'เพิ่มรายการลาแล้ว');
+      if (!leaveValid()) return;
+      var cnt = f.leaveKeys.length;
+      mutate(function () {
+        f.leaveKeys.forEach(function (k, i) { st.data.leaves.push({ id: 'l' + Date.now().toString(36) + i, key: k, type: f.leaveType, from: f.from, to: f.to }); });
+        f.from = ''; f.to = ''; f.leaveKeys = []; f.lvq = '';
+      }, 'เพิ่มรายการลา ' + cnt + ' คนแล้ว');
     }
     else if (a === 'delleave') mutate(function () { st.data.leaves = st.data.leaves.filter(function (l) { return l.id !== v; }); });
     else if (a === 'addperson') {
