@@ -21,7 +21,8 @@
     return { rank: rank, first: sp < 0 ? rest : rest.slice(0, sp), last: sp < 0 ? '' : rest.slice(sp + 1) };
   }
 
-  function build(people, leaves, config) {
+  function effQ(p) { return p.queue || (/^จ\.ส\./.test(p.name) ? 'g' : 'w'); }
+  function build(people, leaves, config, cap) {
     var byKey = {};
     people.forEach(function (p) { byKey[p.key] = p; });
     var horizon = parseInt(config.horizon, 10) || 14;
@@ -50,7 +51,6 @@
     }
     function blockedAbs(id, a) { return coreBlocked(id) || !!leaveAtAbs(id, a); }
 
-    function effQ(p) { return p.queue || (/^จ\.ส\./.test(p.name) ? 'g' : 'w'); }
     function qList(kind) {
       return people.filter(function (p) { return !p.core && p.section === 'rot' && effQ(p) === kind; })
         .sort(function (a, b) { return (+a.ord) - (+b.ord); }).map(function (p) { return p.key; });
@@ -98,10 +98,48 @@
     var idx = parseInt(config.idx0, 10);
     if (isNaN(idx)) idx = 31;
     var curSv = {}, svCnt = { A: 0, B: 1 };
+
+    // ---- ล็อกตารางย้อนหลัง: วันที่ผ่านมาแล้วใช้ที่บันทึกไว้ ไม่คำนวณใหม่ ----
+    var LK = (config && config.lock && config.lock.upTo) ? config.lock : null;
+    var lockAbs = LK ? absOfIso(LK.upTo) : 0;
+    var captured = null;
+    function snap(upTo) {
+      var days = {};
+      for (var x = 1; x <= upTo; x++) {
+        var mx = months[monthIdxOf(x)], dx = x - mx.base, Ox = out[mx.key];
+        if (Ox.svD[dx]) days[x] = Ox.svD[dx].id + '|' + (Ox.svD[dx].type === 'sp' ? 'p' : 'v');
+        else if (Ox.bk[dx]) days[x] = 'b:' + Ox.bk[dx].join(',');
+      }
+      function qs(q) { return { ptr: q.ptr, key: q.list.length ? q.list[q.ptr % q.list.length] : '', owed: q.owed.slice() }; }
+      return { days: days, st: { idx: idx, w: qs(Q.w), g: qs(Q.g), svCnt: { A: svCnt.A, B: svCnt.B }, curSv: { A: curSv.A || '', B: curSv.B || '' } } };
+    }
+    function restore(st) {
+      idx = st.idx; svCnt = { A: st.svCnt.A, B: st.svCnt.B };
+      curSv = {}; if (st.curSv.A) curSv.A = st.curSv.A; if (st.curSv.B) curSv.B = st.curSv.B;
+      ['w', 'g'].forEach(function (k) {
+        var q = Q[k], sq = st[k], ix = q.list.indexOf(sq.key);
+        q.ptr = ix >= 0 ? ix : (q.list.length ? Math.min(sq.ptr, q.list.length - 1) : 0);
+        q.owed = sq.owed.filter(function (id) { return !!byKey[id]; });
+      });
+    }
     for (var a = 1; a <= lastAbs; a++) {
+      if (cap && a === cap + 1) captured = snap(cap);
       var mo = months[monthIdxOf(a)];
       var d = a - mo.base;
       var O = out[mo.key];
+      if (a <= lockAbs) {
+        var ent = LK.days[a];
+        if (ent) {
+          if (ent.indexOf('b:') === 0) O.bk[d] = ent.slice(2).split(',');
+          else {
+            var pr = ent.split('|');
+            O.svD[d] = { id: pr[0], type: pr[1] === 'p' ? 'sp' : 'sv' };
+            if (CORE.indexOf(pr[0]) < 0 && byKey[pr[0]] && O.assigned.indexOf(pr[0]) < 0) O.assigned.push(pr[0]);
+          }
+        }
+        if (a === lockAbs && LK.st) restore(LK.st);
+        continue;
+      }
       var cands = null;
       if (a === 1) cands = ['wichan', 'nopong'];
       else {
@@ -129,6 +167,7 @@
       }
     }
 
+    if (cap && !captured && cap >= lastAbs) captured = snap(Math.min(cap, lastAbs));
     var res = {};
     months.forEach(function (mo) {
       var O = out[mo.key];
@@ -145,6 +184,11 @@
         bkOf: function (d) { return O.bk[d] || []; },
         leaveAt: function (id, d) { return leaveAtAbs(id, mo.base + d); },
         roleOf: function (id, d) {
+          if (mo.base + d <= lockAbs) {
+            if (O.svD[d] && O.svD[d].id === id) return O.svD[d].type;
+            var bl = O.bk[d];
+            if (bl && bl.indexOf(id) >= 0) return 'bk';
+          }
           var lv = leaveAtAbs(id, mo.base + d);
           if (lv) return lv.type === 'ลา' ? 'lv' : 'bz';
           if (O.svD[d] && O.svD[d].id === id) return O.svD[d].type;
@@ -154,7 +198,7 @@
         }
       };
     });
-    return { months: months.map(function (m) { return res[m.key]; }), byKey: byKey };
+    return { months: months.map(function (m) { return res[m.key]; }), byKey: byKey, captured: captured };
   }
 
   // เดือน พ.ย. 2569 จากตารางที่จัดไว้แล้ว (คงที่ ไม่คำนวณใหม่)
@@ -182,5 +226,14 @@
     };
   }
 
-  window.Engine = { build: build, novModel: novModel, parseName: parseName, absOfIso: absOfIso, CORE: CORE, TH_MONTH: TH_MONTH, TH_SHORT: TH_SHORT, daysIn: daysIn };
+  function capture(people, leaves, config, untilIso) {
+    var cap = absOfIso(untilIso);
+    if (cap < 1) return null;
+    if (config && config.lock && config.lock.upTo && absOfIso(config.lock.upTo) >= cap) return config.lock;
+    var r = build(people, leaves, config, cap);
+    if (!r.captured) return null;
+    return { upTo: untilIso, days: r.captured.days, st: r.captured.st };
+  }
+
+  window.Engine = { build: build, capture: capture, novModel: novModel, parseName: parseName, absOfIso: absOfIso, CORE: CORE, TH_MONTH: TH_MONTH, TH_SHORT: TH_SHORT, daysIn: daysIn };
 })();

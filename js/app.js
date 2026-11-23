@@ -482,6 +482,11 @@
     h += '<section class="card"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">ตรวจยอดกำลังพล</h2><div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:\'Noto Serif Thai\',serif;font-size:40px;font-weight:600;line-height:1.1">' + total + '</span><span style="font-size:15px;color:#5D5A54">นาย ในระบบ</span></div>' +
       countTiles() + '<div style="display:flex;flex-direction:column;gap:6px"><label for="tg" style="font-size:14px;font-weight:500;color:#5D5A54">ยอดกำลังพลที่ถูกต้อง</label><input id="tg" class="fld" type="number" inputmode="numeric" value="' + esc(st.data.config.target) + '"></div>' +
       '<span class="chip ' + (ok ? 'ok' : 'warn') + '" style="align-self:flex-start">' + diff + '</span></section>';
+    var lk = st.data.config.lock, lkTxt = lk && lk.upTo ? 'ล็อกแล้วถึงวันที่ ' + thDate(lk.upTo) : 'ยังไม่ได้ล็อก (ล็อกได้ตั้งแต่ 2 ธ.ค. 69 เป็นต้นไป)';
+    h += '<section class="card" style="gap:12px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">ล็อกตารางที่ผ่านมาแล้ว</h2><div style="margin-top:4px;font-size:13px;color:#8A857C;line-height:1.5">เวรของวันที่ผ่านมาแล้วจะไม่ขยับ แม้มีการลา ปรับย้าย หรือเพิ่มคนภายหลัง ระบบล็อกถึงเมื่อวานให้อัตโนมัติทุกครั้งที่แอดมินแก้ข้อมูล</div></div>' +
+      '<span class="chip ' + (lk && lk.upTo ? 'ok' : 'mut') + '" style="align-self:flex-start">' + lkTxt + '</span>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px" data-act="locknow">ล็อกถึงเมื่อวานตอนนี้</button>' +
+      (lk && lk.upTo ? '<button type="button" class="btn" style="flex:1;min-width:150px;background:#fff;color:#8C2B2B;border:1px solid #D9C2B8" data-act="unlock">ปลดล็อกทั้งหมด</button>' : '') + '</div></section>';
     // ลา
     var summ = leaveSummary();
     var valid = leaveValid();
@@ -532,7 +537,24 @@
   }
 
   /* ---------- เหตุการณ์ ---------- */
+  function yesterdayIso() {
+    var t = bkkToday(), dt = new Date(Date.UTC(t.y, t.m, t.d - 1));
+    return iso(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+  }
+  // ล็อกตารางถึงเมื่อวาน (เก็บเวรที่ผ่านมาแล้วไว้ตายตัว) — เริ่มได้ตั้งแต่ 1 ธ.ค. 2569
+  function autoLock() {
+    try {
+      var y = yesterdayIso();
+      if (y < '2026-12-01') return false;
+      var lk = st.data.config.lock;
+      if (lk && lk.upTo >= y) return false;
+      var L = E.capture(st.data.people, st.data.leaves, st.data.config, y);
+      if (L) { st.data.config.lock = L; return true; }
+    } catch (e) { }
+    return false;
+  }
   function mutate(fn, msg) {
+    autoLock();
     fn(); setData(st.data); render(); persist(); if (msg) toast(msg);
   }
   function maxOrd() { return st.data.people.reduce(function (m, p) { return Math.max(m, +p.ord || 0); }, 0); }
@@ -573,6 +595,14 @@
     else if (a === 'statm') { st.statM = v; render(); }
     else if (a === 'login') doLogin();
     else if (a === 'logout') doLogout();
+    else if (a === 'locknow') {
+      if (yesterdayIso() < '2026-12-01') { toast('ล็อกได้ตั้งแต่ 2 ธ.ค. 69 เป็นต้นไป'); return; }
+      var did = autoLock(); setData(st.data); render(); if (did) persist(); toast(did ? 'ล็อกถึงเมื่อวานแล้ว' : 'ล็อกถึงเมื่อวานอยู่แล้ว');
+    }
+    else if (a === 'unlock') {
+      if (!window.confirm('ปลดล็อกทั้งหมด? ตารางที่ผ่านมาแล้วจะคำนวณใหม่ตามข้อมูลปัจจุบัน และอาจเปลี่ยนไป')) return;
+      delete st.data.config.lock; setData(st.data); render(); persist(); toast('ปลดล็อกแล้ว');
+    }
     else if (a === 'ltype') { f.leaveType = v; render(); }
     else if (a === 'addleave') {
       if (!leaveValid()) return;
