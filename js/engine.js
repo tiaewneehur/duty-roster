@@ -50,8 +50,9 @@
     }
     function blockedAbs(id, a) { return coreBlocked(id) || !!leaveAtAbs(id, a); }
 
+    function effQ(p) { return p.queue || (/^จ\.ส\./.test(p.name) ? 'g' : 'w'); }
     function qList(kind) {
-      return people.filter(function (p) { return !p.core && p.section === 'rot' && p.queue === kind; })
+      return people.filter(function (p) { return !p.core && p.section === 'rot' && effQ(p) === kind; })
         .sort(function (a, b) { return (+a.ord) - (+b.ord); }).map(function (p) { return p.key; });
     }
     var Q = { w: { list: qList('w'), ptr: 0, owed: [] }, g: { list: qList('g'), ptr: 0, owed: [] } };
@@ -123,7 +124,7 @@
       idx++;
       var p = pick(green ? 'g' : 'w', a) || pick(green ? 'w' : 'g', a);
       if (p) {
-        O.svD[d] = { id: p, type: (byKey[p] && byKey[p].queue === 'g') ? 'sp' : 'sv' };
+        O.svD[d] = { id: p, type: (byKey[p] && effQ(byKey[p]) === 'g') ? 'sp' : 'sv' };
         if (O.assigned.indexOf(p) < 0) O.assigned.push(p);
       }
     }
@@ -163,7 +164,7 @@
     var svD = {};
     Object.keys(SV).forEach(function (k) {
       var p = byKey[SV[k]];
-      svD[k] = { id: SV[k], type: p && p.queue === 'g' ? 'sp' : 'sv' };
+      svD[k] = { id: SV[k], type: p && effQ(p) === 'g' ? 'sp' : 'sv' };
     });
     var rows = ['wichan', 'nopong', 'thanaphum', 'kittiphat', 'adison', 'anurak', 'korawut', 'ekkaphop', 'suparit', 'phanu', 'warakorn', 'rit', 'nikom', 'narawut', 'chanaphon', 'thatphon', 'banrot', 'nattaphat', 'rattakiat'].filter(function (id) { return !!byKey[id]; });
     var bkIds = ['thanaphum', 'kittiphat'];
