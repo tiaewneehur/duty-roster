@@ -156,7 +156,7 @@
   }
   function gridHtml(M) {
     var matched = matchedIds();
-    var cols = 'grid-template-columns:132px repeat(' + M.N + ',44px)';
+    var cols = 'grid-template-columns:150px repeat(' + M.N + ',44px)';
     var t = todayAbsInfo();
     var h = '<div style="width:max-content;min-width:100%"><div class="hd" style="' + cols + '"><div class="hdname">ชื่อ</div>';
     for (var d = 1; d <= M.N; d++) {
@@ -170,7 +170,7 @@
       if (!isCore && (i === 0 || E.CORE.indexOf(M.rows[i - 1]) >= 0)) h += '<div class="lbl">หมุนเวียนตามลำดับรายชื่อ</div>';
       var rc = 'row' + (matched.length ? (matched.indexOf(id) >= 0 ? ' hit' : ' dim') : '');
       var pn = parts(id);
-      h += '<div class="' + rc + '" style="' + cols + '"><div class="nmcell"><span style="font-size:14px;font-weight:600;line-height:1.25">' + esc(pn.first) + '</span><span style="font-size:11px;color:#8A857C;line-height:1.25">' + esc((pn.rank + ' ' + pn.last).trim()) + '</span></div>';
+      h += '<div class="' + rc + '" style="' + cols + '"><div class="nmcell"><span style="font-size:14px;font-weight:600;line-height:1.25">' + esc(pn.first) + '</span><span style="font-size:11px;color:#8A857C;line-height:1.25">' + esc(nm(id)) + '</span></div>';
       for (var dd = 1; dd <= M.N; dd++) {
         var role = M.roleOf(id, dd);
         h += '<div class="cell' + (isTodayIn(M, dd) ? ' tc' : '') + '">' + (role ? '<span class="pill ' + role + '">' + LABEL[role] + '</span>' : '') + '</div>';
