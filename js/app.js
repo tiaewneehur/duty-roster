@@ -140,6 +140,7 @@
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
       '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span></section>';
     h += headcountCard();
+    h += leaveCard('ลา', 'รายชื่อลา') + leaveCard('ลากิจ', 'รายชื่อลากิจ');
     h += listCards();
     h += '<footer style="font-size:12px;color:#8A857C;line-height:1.6;padding:8px 8px 0 8px">' + (M.draft ? 'ตารางเดือนนี้เป็นร่าง คำนวณจากกฎหมุนเวียนตามลำดับรายชื่อ ชุดสลับ 4 คนสลับบทบาทสิบเวร/เวร บก.ร้อย ทุกเดือน คนลาถูกตัดออกและกลับเข้าคิวอัตโนมัติ · ตารางอาจเปลี่ยนเมื่อแอดมินปรับรายชื่อ' : 'ข้อมูล พ.ย. จากตารางที่จัดไว้แล้ว · แอดมินเป็นผู้อัปเดตตาราง') + '</footer>';
     return h;
@@ -218,6 +219,50 @@
       return '<div style="background:#FFF4D6;border-radius:20px;padding:14px 18px;display:flex;flex-direction:column;gap:2px"><div style="font-size:16px;font-weight:600">' + esc(nm(id)) + '</div>' +
         '<div style="font-size:14px;line-height:1.5;color:#5D5A54">' + line + ' · เวร' + esc(M.short) + ' ' + count + ' วัน</div></div>';
     }).join('');
+  }
+  /* ----- รายชื่อลา / ลากิจ (หน้าหลัก) ----- */
+  function leaveDays(l) { return Math.round((Date.parse(l.to) - Date.parse(l.from)) / 864e5) + 1; }
+  function leaveCard(type, title) {
+    var t = todayAbsInfo(), todayIso = iso(t.y, t.m, t.d);
+    var items = st.data.leaves.filter(function (l) { return l.type === type; }).sort(function (a, b) { return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); });
+    var ppl = {}, days = 0;
+    items.forEach(function (l) { ppl[l.key] = 1; days += leaveDays(l); });
+    var cls = type === 'ลา' ? 'lv' : 'bz';
+    var h = '<section class="card"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">' + title + '</h2><span style="font-size:13px;color:#8A857C">' + Object.keys(ppl).length + ' คน · ' + days + ' วัน</span></div>';
+    if (!items.length) h += '<div style="font-size:14px;color:#8A857C">ยังไม่มีรายการ</div>';
+    h += '<div style="max-height:320px;overflow-y:auto">';
+    items.forEach(function (l, i) {
+      var state = l.to < todayIso ? ['ครบแล้ว', 'chip mut'] : (l.from <= todayIso ? ['กำลัง' + type, 'chip ' + (type === 'ลา' ? 'warn' : 'mut')] : ['ล่วงหน้า', 'chip ok']);
+      h += '<div class="lrow" style="padding:9px 2px"><span style="width:28px;font-size:12px;color:#8A857C;text-align:right;flex:none">' + (i + 1) + '</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font-size:14px;line-height:1.4">' + esc(nm(l.key)) + '</span><span style="font-size:12px;color:#8A857C">' + thDate(l.from) + (l.to > l.from ? ' – ' + thDate(l.to) : '') + ' · ' + leaveDays(l) + ' วัน</span></div><span class="' + state[1] + '" style="font-size:12px;padding:4px 10px;flex:none">' + state[0] + '</span></div>';
+    });
+    return h + '</div></section>';
+  }
+  function leaveStatsHtml(M) {
+    var per = {}, nRec = 0, tot = 0;
+    st.data.leaves.forEach(function (l) {
+      var d;
+      if (M) {
+        var a1 = E.absOfIso(l.from), a2 = E.absOfIso(l.to), lo = Math.max(a1, M.base + 1), hi = Math.min(a2, M.base + M.N);
+        d = hi >= lo ? hi - lo + 1 : 0;
+      } else d = leaveDays(l);
+      if (d <= 0) return;
+      var o = per[l.key] || (per[l.key] = { lv: 0, bz: 0, n: 0 });
+      if (l.type === 'ลา') o.lv += d; else o.bz += d;
+      o.n++; nRec++; tot += d;
+    });
+    var list = Object.keys(per).map(function (k) { return { k: k, lv: per[k].lv, bz: per[k].bz, n: per[k].n, t: per[k].lv + per[k].bz }; }).sort(function (a, b) { return (b.t - a.t) || (a.k < b.k ? -1 : 1); });
+    var mx = 1; list.forEach(function (x) { if (x.t > mx) mx = x.t; });
+    function tile(v, l) { return '<div style="background:#FAF7F2;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:2px"><div style="font-family:\'Noto Serif Thai\',serif;font-size:24px;font-weight:600;line-height:1.1">' + v + '</div><div style="font-size:12px;color:#8A857C;line-height:1.4">' + l + '</div></div>'; }
+    var h = '<section class="card" style="gap:14px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">สถิติการลา</h2><div style="margin-top:4px;font-size:12px;color:#8A857C">นับจากรายการลาที่แอดมินบันทึก · รวมทุกส่วนและชุดสลับ 4 คน</div></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">' + tile(nRec, 'รายการลา') + tile(list.length, 'คนที่ลา') + tile(tot, 'วันลารวม') + '</div>';
+    if (!list.length) h += '<div style="font-size:14px;color:#8A857C">ยังไม่มีรายการลาในช่วงนี้</div>';
+    list.forEach(function (x) {
+      h += '<div style="display:flex;flex-direction:column;gap:5px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.3">' + esc(nm(x.k)) + '</div><div style="font-size:14px;font-weight:600;white-space:nowrap">' + x.t + ' วัน</div></div>' +
+        '<div style="display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1ECE4"><span style="width:' + (x.lv / mx * 100).toFixed(1) + '%;background:#CFC8BB"></span><span style="width:' + (x.bz / mx * 100).toFixed(1) + '%;background:#E3C98A"></span></div>' +
+        '<div style="font-size:12px;color:#8A857C">ลา ' + x.lv + ' วัน · ลากิจ ' + x.bz + ' วัน · ' + x.n + ' ครั้ง</div></div>';
+    });
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#5D5A54;border-top:1px solid #F1ECE4;padding-top:12px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#CFC8BB;margin-right:6px"></span>ลา</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E3C98A;margin-right:6px"></span>ลากิจ</span></div></section>';
+    return h;
   }
   function counts() {
     var c = { rot: 0, ch: 0, ltc: 0, mis: 0, tr: 0 };
@@ -321,6 +366,7 @@
         if (v) up.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #F1ECE4;padding-top:10px"><div style="min-width:0"><div style="font-size:12px;color:#8A857C">' + WDF[M.wd(d)] + ' ' + d + ' ' + M.short + '</div><div style="font-size:15px;font-weight:600;line-height:1.35">' + esc(nm(v.id)) + '</div></div><span class="pill ' + v.type + '">' + (v.type === 'sp' ? 'สว./ผช.' : 'สว.') + '</span></div>');
       }
     });
+    h += leaveStatsHtml(st.statM === 'all' ? null : st.model[st.statM]);
     h += '<section class="card"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">เวรที่กำลังจะถึง</h2>' + up.join('') + '</section>';
     h += '<footer style="font-size:12px;color:#8A857C;line-height:1.6;padding:0 8px">นับเฉพาะคนในลิสต์หมุนเวียน ไม่รวมชุดสลับ 4 คน · ก.ย.–ต.ค. ยังไม่รวม</footer>';
     return h;
