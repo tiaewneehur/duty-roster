@@ -206,7 +206,7 @@
     var q = (st.q || '').trim();
     if (!q) return '';
     var ids = [];
-    st.data.people.forEach(function (p) { if (ids.length < 3 && p.section !== 'tr' && p.name.indexOf(q) >= 0 && (p.core || p.queue || M.rows.indexOf(p.key) >= 0)) ids.push(p.key); });
+    st.data.people.forEach(function (p) { if (ids.length < 3 && p.section !== 'tr' && p.name.indexOf(q) >= 0 && (p.core || p.section === 'rot' || M.rows.indexOf(p.key) >= 0)) ids.push(p.key); });
     if (!ids.length) return '<div style="padding:4px 10px;font-size:14px;color:#8A857C">ไม่พบ "' + esc(q) + '" ในรายชื่อหมุนเวียน</div>';
     var t = todayAbsInfo();
     return ids.map(function (id) {
