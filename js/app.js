@@ -59,6 +59,7 @@
       if (action === 'logout') return resolve({ ok: true });
       if (action === 'save') { demoDb.people = body.people; demoDb.leaves = body.leaves; demoDb.config = body.config; demoDb.rev++; return resolve({ ok: true, rev: demoDb.rev }); }
       if (action === 'changePassword') return resolve({ ok: false, error: 'demo' });
+      if (action === 'exportSheet') return resolve({ ok: true, url: '', name: body.name });
       resolve({ ok: false, error: 'unknown_action' });
     });
   }
@@ -136,7 +137,7 @@
     h += '<section style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6px">' +
       '<h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">ตารางรายคน</h2><span style="font-size:12px;color:#8A857C">เลื่อนดูทั้งเดือน · หัววันที่และชื่อค้างไว้</span></div>' +
       '<div id="gridscroll" style="overflow:auto;overscroll-behavior:contain;max-height:600px;background:#fff;border-radius:24px;box-shadow:0 8px 28px rgba(60,40,20,.07)">' + gridHtml(M) + '</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="xlsx1">ดาวน์โหลด Excel เดือนนี้</button><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="xlsxall">ทุกเดือน (หลายชีต)</button></div></section>';
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="xlsx1">ดาวน์โหลด Excel เดือนนี้</button><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="xlsxall">ทุกเดือน (หลายชีต)</button></div>' + gsBox() + '</section>';
     h += '<section style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 8px">' +
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
       '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span></section>';
@@ -297,6 +298,47 @@
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
       toast('สร้างไฟล์ Excel แล้ว');
     } catch (e) { toast('สร้างไฟล์ไม่สำเร็จ'); }
+  }
+
+  /* ---------- ส่งตารางไปไว้ใน Google Sheet (แอดมิน) ---------- */
+  function gsBox() {
+    if (!st.token) return '';
+    var b = !!st.gsBusy, dis = b ? ' disabled' : '';
+    var h = '<div style="background:#fff;border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 18px rgba(60,40,20,.06)"><div style="font-size:14px;font-weight:600;color:#2B2926">ส่งตารางนี้ไปไว้ใน Google Sheet</div>' +
+      '<div style="font-size:12.5px;line-height:1.5;color:#8A857C">สร้างแท็บใหม่ในชีทของระบบ หน้าตาเหมือนในเว็บ (ส่งซ้ำ = แทนที่แท็บเดิม) เป็นภาพ ณ เวลาที่กดส่ง ถ้าแก้ข้อมูลทีหลังต้องกดส่งใหม่</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="gs1"' + dis + '>' + (b ? 'กำลังส่ง…' : 'ส่งเดือนนี้ไปชีท') + '</button>' +
+      '<button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="gsall"' + dis + '>ทุกเดือน</button></div>';
+    if (st.gsMsg) h += '<div style="font-size:13px;line-height:1.5;color:' + (st.gsMsg.err ? '#8C2B2B' : '#17492B') + '">' + esc(st.gsMsg.text) + (st.gsMsg.url ? ' <a href="' + esc(st.gsMsg.url) + '" target="_blank" rel="noopener" style="color:#8C5A45;font-weight:600">เปิดชีท</a>' : '') + '</div>';
+    return h + '</div>';
+  }
+  function sheetPayload(M) {
+    var rec = { get: function (o) { return o || {}; } };
+    var sh = monthSheet(M, rec), styles = [], idx = {};
+    var rows = sh.rows.map(function (r) {
+      return r.map(function (c) {
+        if (!c) return null;
+        var k = JSON.stringify(c.s || {});
+        if (idx[k] === undefined) { idx[k] = styles.length; styles.push(c.s || {}); }
+        return [c.v === undefined ? '' : c.v, idx[k]];
+      });
+    });
+    return { name: sh.name, styles: styles, rows: rows, cols: sh.cols, heights: sh.heights, merges: sh.merges, freeze: sh.freeze };
+  }
+  function sendSheets(all) {
+    if (!st.token || st.gsBusy) return;
+    var ms = all ? st.months.slice() : [curMonth()], i = 0, url = '';
+    st.gsBusy = true; st.gsMsg = null; render();
+    function done(msg, err) { var tt = $('#toast'); if (tt) tt.style.display = 'none'; st.gsBusy = false; st.gsMsg = { text: msg, err: !!err, url: err ? '' : url }; render(); }
+    (function next() {
+      if (i >= ms.length) return done(all ? 'ส่งครบ ' + ms.length + ' เดือนแล้ว' : 'ส่งแล้ว (แท็บ ' + ms[0].short + ' ' + ((ms[0].y + 543) % 100) + ')');
+      var M = ms[i];
+      toast('กำลังส่ง ' + (i + 1) + '/' + ms.length + ' · ' + M.short + ' ' + ((M.y + 543) % 100), 60000);
+      api('exportSheet', Object.assign({ token: st.token }, sheetPayload(M))).then(function (r) {
+        if (r && r.ok) { if (r.url) url = r.url; i++; return next(); }
+        if (r && r.error === 'unauthorized') { doLogout(true); st.gsBusy = false; render(); return toast('หมดเวลาเข้าสู่ระบบ กรุณาใส่รหัสใหม่'); }
+        done('ส่งไม่สำเร็จ' + (r && r.message ? ': ' + r.message : '') + (i ? ' (ส่งไปแล้ว ' + i + ' เดือน)' : '') + (r && r.error === 'unknown_action' ? ' · ยังไม่ได้อัปเดตโค้ด Apps Script' : ''), true);
+      }).catch(function () { done('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' + (i ? ' (ส่งไปแล้ว ' + i + ' เดือน)' : ''), true); });
+    })();
   }
   /* ----- รายชื่อลา / ลากิจ (หน้าหลัก) ----- */
   function leaveDays(l) { return Math.round((Date.parse(l.to) - Date.parse(l.from)) / 864e5) + 1; }
@@ -709,6 +751,8 @@
     }
     else if (a === 'xlsx1') exportXlsx(false);
     else if (a === 'xlsxall') exportXlsx(true);
+    else if (a === 'gs1') sendSheets(false);
+    else if (a === 'gsall') sendSheets(true);
     else if (a === 'lvf') { st.lvF = v; render(); }
     else if (a === 'lvopen') { st.openLv = st.openLv || {}; st.openLv[v] = !st.openLv[v]; render(); }
     else if (a === 'ltype') { f.leaveType = v; render(); }
