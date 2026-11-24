@@ -225,7 +225,15 @@
 
   /* ---------- ส่งออก Excel (.xlsx) ---------- */
   var XC = { sv: ['F9D6D6', '7C1A1A'], bk: ['CFE3F6', '123F6B'], sp: ['CDE8D6', '17492B'], lv: ['E9E5DC', '4F4C46'], bz: ['F3E6C8', '6B4E0B'] };
-  function monthSheet(M, S) {
+  // รายชื่อทั้งหมดที่อยู่ในวงหมุนเวียน (ตามหน้าแอดมิน/ชีท) สำหรับตารางในชีท: ทุกคนขึ้นทุกเดือน แม้เดือนนั้นยังไม่ถึงเวร
+  function sheetRows(M) {
+    if (!M.draft) return M.rows;
+    var core = E.CORE.filter(function (id) { return !!st.byKey[id]; });
+    var rest = st.data.people.filter(function (p) { return p.section === 'rot' && !p.core && core.indexOf(p.key) < 0; }).sort(function (a, b) { return (a.ord || 0) - (b.ord || 0); }).map(function (p) { return p.key; });
+    return core.concat(rest);
+  }
+  function monthSheet(M, S, full) {
+    var RR = full ? sheetRows(M) : M.rows;
     var N = M.N, SUM = 3, nc = 2 + N + SUM, last = XlsxLite.colName(nc - 1);
     var rows = [], merges = [], heights = {};
     function blank() { var a = []; for (var i = 0; i < nc; i++) a.push(null); return a; }
@@ -247,11 +255,11 @@
     heights[2] = 18; heights[3] = 18;
     rows.push(hw); rows.push(hd);
     var n = 0;
-    M.rows.forEach(function (id, i) {
+    RR.forEach(function (id, i) {
       var isCore = E.CORE.indexOf(id) >= 0;
       function sec(txt, fill, color) { var r = blank(); r[0] = { v: txt, s: S.get({ b: 1, fill: fill, color: color, border: true }) }; for (var k = 1; k < nc; k++) r[k] = { s: S.get({ fill: fill, border: true }) }; rows.push(r); merges.push('A' + rows.length + ':' + last + rows.length); heights[rows.length - 1] = 19; }
       if (i === 0 && isCore) sec('ชุดสลับ 2 วัน เว้น 2 วัน', 'DCE9F7', '123F6B');
-      if (!isCore && (i === 0 || E.CORE.indexOf(M.rows[i - 1]) >= 0)) sec('หมุนเวียนตามลำดับรายชื่อ  (แถบเขียว = จ.ส.ต. ผช.)', 'F6DADA', '7C1A1A');
+      if (!isCore && (i === 0 || E.CORE.indexOf(RR[i - 1]) >= 0)) sec('หมุนเวียนตามลำดับรายชื่อ  (แถบเขียว = จ.ส.ต. ผช.)', 'F6DADA', '7C1A1A');
       var pp = person(id), tint = isCore ? 'F4F8FD' : (pp && isGreen(pp) ? 'F3FAF5' : 'FEF6F6');
       var pn = parts(id), r = blank(); n++;
       r[0] = { v: n, s: S.get({ h: 'center', fill: tint, border: true, color: '8A857C' }) };
@@ -314,7 +322,7 @@
   }
   function sheetPayload(M) {
     var rec = { get: function (o) { return o || {}; } };
-    var sh = monthSheet(M, rec), styles = [], idx = {};
+    var sh = monthSheet(M, rec, true), styles = [], idx = {};
     var rows = sh.rows.map(function (r) {
       return r.map(function (c) {
         if (!c) return null;
