@@ -331,7 +331,9 @@
         return [c.v === undefined ? '' : c.v, idx[k]];
       });
     });
-    return { name: 'ตาราง ' + sh.name, styles: styles, rows: rows, cols: sh.cols, heights: sh.heights, merges: sh.merges, freeze: sh.freeze };
+    // ชีทตรึงคอลัมน์ A–B ไว้ จึงห้ามมีเซลล์ผสานที่คร่อมเส้นตรึง (ตัดการผสานแถวชื่อเรื่อง/หัวหมวดที่เริ่มจากคอลัมน์ A ข้ามไปไกลกว่า B)
+    var mg = sh.merges.filter(function (m) { var mm = /^([A-Z]+)\d+:([A-Z]+)\d+$/.exec(m); return !(mm && mm[1] === 'A' && mm[2] !== 'A' && mm[2] !== 'B'); });
+    return { name: 'ตาราง ' + sh.name, styles: styles, rows: rows, cols: sh.cols, heights: sh.heights, merges: mg, freeze: sh.freeze };
   }
   var gsHash = {}, gsAgain = false, gsTimer = null;
   function hashStr(t) { var h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return h + ':' + t.length; }
