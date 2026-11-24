@@ -250,8 +250,8 @@
       if (d <= 0) return;
       var sx = statusOf(l);
       if (flt !== 'all' && sx !== flt) return;
-      var o = per[l.key] || (per[l.key] = { lvD: 0, lvN: 0, bzN: 0, n: 0, recs: [] });
-      if (l.type === 'ลา') { o.lvD += d; o.lvN++; } else o.bzN++;
+      var o = per[l.key] || (per[l.key] = { lvD: 0, lvN: 0, bzN: 0, n: 0, recs: [], lens: [] });
+      if (l.type === 'ลา') { o.lvD += d; o.lvN++; o.lens.push(d); } else o.bzN++;
       o.n++; nRec++;
       o.recs.push({ from: l.from, to: l.to, type: l.type, d: d, s: sx });
     });
@@ -259,6 +259,10 @@
       .sort(function (a, b) { return (b.n - a.n) || (a.k < b.k ? -1 : 1); });
     var mx = 1; list.forEach(function (x) { if (x.n > mx) mx = x.n; });
     function tile(v, l) { return '<div style="background:#FAF7F2;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:2px"><div style="font-family:\'Noto Serif Thai\',serif;font-size:24px;font-weight:600;line-height:1.1">' + v + '</div><div style="font-size:12px;color:#8A857C;line-height:1.4">' + l + '</div></div>'; }
+    function lvTxt(x) {
+      var u = x.lens.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      return u.length === 1 ? 'ลา ' + u[0] + ' วัน ' + x.lvN + ' ครั้ง' : 'ลา ' + x.lvN + ' ครั้ง (' + x.lens.join(', ') + ' วัน)';
+    }
     var SB = { past: ['ลาแล้ว', '#E3F0DF', '#3F6B35'], now: ['กำลังลา', '#E1ECF8', '#2F5D96'], future: ['ยังไม่ถึง', '#F8EAC8', '#8A6A1E'] };
     var h = '<section class="card" style="gap:14px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">สถิติการลา</h2><div style="margin-top:4px;font-size:12px;color:#8A857C">นับเป็นจำนวนครั้งที่ลา · แตะชื่อเพื่อดูวันที่ · รวมทุกส่วนและชุดสลับ 4 คน</div></div>' +
       '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">' + tile(nRec, 'ครั้งที่ลาทั้งหมด') + tile(list.length, 'คนที่ลา') + '</div>';
@@ -272,7 +276,7 @@
     list.forEach(function (x) {
       var open = !!st.openLv[x.k];
       h += '<div style="border-top:1px solid #F1ECE4;padding-top:12px;display:flex;flex-direction:column;gap:6px">' +
-        '<button type="button" data-act="lvopen" data-v="' + esc(x.k) + '" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.5"><span style="color:#8A857C;display:inline-block;width:14px">' + (open ? '▾' : '▸') + '</span>' + esc(nm(x.k)) + '</div><div style="font-size:13px;font-weight:600;white-space:nowrap;text-align:right;line-height:1.5">' + (x.lvN ? 'ลา ' + x.lvD + ' วัน ' + x.lvN + ' ครั้ง' : '') + (x.lvN && x.bzN ? '<br>' : '') + (x.bzN ? 'ลากิจ ' + x.bzN + ' ครั้ง' : '') + '</div></div>' +
+        '<button type="button" data-act="lvopen" data-v="' + esc(x.k) + '" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.5"><span style="color:#8A857C;display:inline-block;width:14px">' + (open ? '▾' : '▸') + '</span>' + esc(nm(x.k)) + '</div><div style="font-size:13px;font-weight:600;white-space:nowrap;text-align:right;line-height:1.5">' + (x.lvN ? lvTxt(x) : '') + (x.lvN && x.bzN ? '<br>' : '') + (x.bzN ? 'ลากิจ ' + x.bzN + ' ครั้ง' : '') + '</div></div>' +
         '<div style="display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1ECE4"><span style="width:' + (x.lvN / mx * 100).toFixed(1) + '%;background:#CFC8BB"></span><span style="width:' + (x.bzN / mx * 100).toFixed(1) + '%;background:#E3C98A"></span></div></button>' +
         '';
       if (open) {
