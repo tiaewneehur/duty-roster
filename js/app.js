@@ -135,7 +135,8 @@
       '<div id="results">' + resultsHtml(M) + '</div></section>';
     h += '<section style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6px">' +
       '<h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">ตารางรายคน</h2><span style="font-size:12px;color:#8A857C">เลื่อนดูทั้งเดือน · หัววันที่และชื่อค้างไว้</span></div>' +
-      '<div id="gridscroll" style="overflow:auto;overscroll-behavior:contain;max-height:600px;background:#fff;border-radius:24px;box-shadow:0 8px 28px rgba(60,40,20,.07)">' + gridHtml(M) + '</div></section>';
+      '<div id="gridscroll" style="overflow:auto;overscroll-behavior:contain;max-height:600px;background:#fff;border-radius:24px;box-shadow:0 8px 28px rgba(60,40,20,.07)">' + gridHtml(M) + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="xlsx1">ดาวน์โหลด Excel เดือนนี้</button><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="xlsxall">ทุกเดือน (หลายชีต)</button></div></section>';
     h += '<section style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 8px">' +
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
       '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span></section>';
@@ -219,6 +220,83 @@
       return '<div style="background:#FFF4D6;border-radius:20px;padding:14px 18px;display:flex;flex-direction:column;gap:2px"><div style="font-size:16px;font-weight:600">' + esc(nm(id)) + '</div>' +
         '<div style="font-size:14px;line-height:1.5;color:#5D5A54">' + line + ' · เวร' + esc(M.short) + ' ' + count + ' วัน</div></div>';
     }).join('');
+  }
+
+  /* ---------- ส่งออก Excel (.xlsx) ---------- */
+  var XC = { sv: ['F9D6D6', '7C1A1A'], bk: ['CFE3F6', '123F6B'], sp: ['CDE8D6', '17492B'], lv: ['E9E5DC', '4F4C46'], bz: ['F3E6C8', '6B4E0B'] };
+  function monthSheet(M, S) {
+    var N = M.N, SUM = 3, nc = 2 + N + SUM, last = XlsxLite.colName(nc - 1);
+    var rows = [], merges = [], heights = {};
+    function blank() { var a = []; for (var i = 0; i < nc; i++) a.push(null); return a; }
+    var r0 = blank(); r0[0] = { v: 'ตารางเวรสิบเวร ร้อย.ทม.ที่ 2 ทม.รอ.พัน 2', s: S.get({ b: 1, sz: 15, color: '2B2926' }) }; rows.push(r0); merges.push('A1:' + last + '1'); heights[0] = 26;
+    var r1 = blank(); r1[0] = { v: M.title + (M.draft ? ' (ร่าง)' : ''), s: S.get({ sz: 11, color: '8A857C' }) }; rows.push(r1); merges.push('A2:' + last + '2'); heights[1] = 20;
+    var hw = blank(), hd = blank();
+    var hs = S.get({ b: 1, h: 'center', fill: 'F1ECE4', border: true, color: '5D5A54' });
+    hw[0] = { v: 'ที่', s: hs }; hd[0] = { s: hs }; hw[1] = { v: 'ยศ ชื่อ นามสกุล', s: hs }; hd[1] = { s: hs };
+    merges.push('A3:A4'); merges.push('B3:B4');
+    for (var d = 1; d <= N; d++) {
+      var wdn = M.wd(d), col = wdn === 0 ? 'B33A3A' : (wdn === 6 ? '8C5A45' : '5D5A54');
+      hw[1 + d] = { v: WD[wdn], s: S.get({ h: 'center', fill: 'FAF7F2', border: true, color: col, sz: 9 }) };
+      hd[1 + d] = { v: d, s: S.get({ b: 1, h: 'center', fill: 'FAF7F2', border: true, color: col }) };
+    }
+    ['สิบเวร/ผช.', 'เวร บก.ร้อย', 'ลา/ลากิจ'].forEach(function (t, k) {
+      var c = 2 + N + k; hw[c] = { v: t, s: S.get({ b: 1, h: 'center', fill: 'F1ECE4', border: true, color: '5D5A54', sz: 9, wrap: 1 }) }; hd[c] = { s: S.get({ fill: 'F1ECE4', border: true }) };
+      merges.push(XlsxLite.colName(c) + '3:' + XlsxLite.colName(c) + '4');
+    });
+    heights[2] = 18; heights[3] = 18;
+    rows.push(hw); rows.push(hd);
+    var n = 0;
+    M.rows.forEach(function (id, i) {
+      var isCore = E.CORE.indexOf(id) >= 0;
+      function sec(txt, fill, color) { var r = blank(); r[0] = { v: txt, s: S.get({ b: 1, fill: fill, color: color, border: true }) }; for (var k = 1; k < nc; k++) r[k] = { s: S.get({ fill: fill, border: true }) }; rows.push(r); merges.push('A' + rows.length + ':' + last + rows.length); heights[rows.length - 1] = 19; }
+      if (i === 0 && isCore) sec('ชุดสลับ 2 วัน เว้น 2 วัน', 'DCE9F7', '123F6B');
+      if (!isCore && (i === 0 || E.CORE.indexOf(M.rows[i - 1]) >= 0)) sec('หมุนเวียนตามลำดับรายชื่อ  (แถบเขียว = จ.ส.ต. ผช.)', 'F6DADA', '7C1A1A');
+      var pp = person(id), tint = isCore ? 'F4F8FD' : (pp && isGreen(pp) ? 'F3FAF5' : 'FEF6F6');
+      var pn = parts(id), r = blank(); n++;
+      r[0] = { v: n, s: S.get({ h: 'center', fill: tint, border: true, color: '8A857C' }) };
+      r[1] = { v: (pn.rank ? pn.rank + ' ' : '') + pn.first + ' ' + pn.last, s: S.get({ fill: tint, border: true, b: 0 }) };
+      var cSv = 0, cBk = 0, cLv = 0;
+      for (var dd = 1; dd <= N; dd++) {
+        var role = M.roleOf(id, dd);
+        if (role) {
+          if (role === 'sv' || role === 'sp') cSv++; else if (role === 'bk') cBk++; else cLv++;
+          r[1 + dd] = { v: LABEL[role], s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[role][0], color: XC[role][1], border: true }) };
+        } else r[1 + dd] = { s: S.get({ fill: tint, border: true }) };
+      }
+      var ss = S.get({ b: 1, h: 'center', fill: tint, border: true });
+      r[2 + N] = { v: cSv, s: ss }; r[3 + N] = { v: cBk, s: ss }; r[4 + N] = { v: cLv, s: ss };
+      rows.push(r); heights[rows.length - 1] = 20;
+    });
+    rows.push(blank());
+    var LGD = [['sv', 'สว.', 'สิบเวร'], ['sp', 'สว./ผช.', 'สิบเวร + ผู้ช่วย'], ['bk', 'เวร', 'เวร บก.ร้อย'], ['lv', 'ลา', 'ลา'], ['bz', 'กิจ', 'ลากิจ']];
+    [LGD.slice(0, 3), LGD.slice(3)].forEach(function (grp) {
+      var lg = blank(), pos = 2;
+      grp.forEach(function (L) {
+        var rn = rows.length + 1;
+        lg[pos] = { v: L[1], s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[L[0]][0], color: XC[L[0]][1], border: true }) };
+        lg[pos + 1] = { s: S.get({ fill: XC[L[0]][0], border: true }) }; lg[pos + 2] = { s: S.get({ fill: XC[L[0]][0], border: true }) };
+        lg[pos + 3] = { v: L[2], s: S.get({ sz: 9, color: '5D5A54' }) };
+        merges.push(XlsxLite.colName(pos) + rn + ':' + XlsxLite.colName(pos + 2) + rn);
+        merges.push(XlsxLite.colName(pos + 3) + rn + ':' + XlsxLite.colName(pos + 8) + rn);
+        pos += 9;
+      });
+      rows.push(lg);
+    });
+    var cols = [5, 28]; for (var q = 0; q < N; q++) cols.push(5.4); cols.push(10, 10, 10);
+    return { name: M.short + ' ' + ((M.y + 543) % 100), rows: rows, cols: cols, heights: heights, merges: merges, freeze: { r: 4, c: 2 } };
+  }
+  function exportXlsx(all) {
+    try {
+      var S = new XlsxLite.Styles(), ms = all ? st.months.filter(function (m) { return !m.draft || true; }) : [curMonth()];
+      var sheets = ms.map(function (m) { return monthSheet(m, S); });
+      var bytes = XlsxLite.build(sheets, S);
+      var blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var url = URL.createObjectURL(blob), a = document.createElement('a'), M = curMonth();
+      a.href = url; a.download = all ? 'ตารางเวร_ทุกเดือน.xlsx' : 'ตารางเวร_' + M.short + (M.y + 543) % 100 + '.xlsx';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast('สร้างไฟล์ Excel แล้ว');
+    } catch (e) { toast('สร้างไฟล์ไม่สำเร็จ'); }
   }
   /* ----- รายชื่อลา / ลากิจ (หน้าหลัก) ----- */
   function leaveDays(l) { return Math.round((Date.parse(l.to) - Date.parse(l.from)) / 864e5) + 1; }
@@ -629,6 +707,8 @@
       if (!window.confirm('ปลดล็อกทั้งหมด? ตารางที่ผ่านมาแล้วจะคำนวณใหม่ตามข้อมูลปัจจุบัน และอาจเปลี่ยนไป')) return;
       delete st.data.config.lock; setData(st.data); render(); persist(); toast('ปลดล็อกแล้ว');
     }
+    else if (a === 'xlsx1') exportXlsx(false);
+    else if (a === 'xlsxall') exportXlsx(true);
     else if (a === 'lvf') { st.lvF = v; render(); }
     else if (a === 'lvopen') { st.openLv = st.openLv || {}; st.openLv[v] = !st.openLv[v]; render(); }
     else if (a === 'ltype') { f.leaveType = v; render(); }
