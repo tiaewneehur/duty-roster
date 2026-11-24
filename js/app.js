@@ -69,7 +69,7 @@
     st.saveMsg = 'กำลังบันทึก…'; paintSaveMsg();
     saveChain = saveChain.then(function () {
       return api('save', { token: st.token, rev: st.data.rev, people: st.data.people, leaves: st.data.leaves, config: st.data.config }).then(function (r) {
-        if (r.ok) { st.data.rev = r.rev; st.saveMsg = 'บันทึกแล้ว'; paintSaveMsg(); return; }
+        if (r.ok) { st.data.rev = r.rev; st.saveMsg = 'บันทึกแล้ว'; paintSaveMsg(); scheduleSync(false); return; }
         if (r.error === 'unauthorized') { doLogout(true); toast('หมดเวลาเข้าสู่ระบบ กรุณาใส่รหัสใหม่'); return; }
         if (r.error === 'stale' && r.state) { setData(r.state); st.saveMsg = ''; render(); toast('มีการแก้ไขจากที่อื่น โหลดข้อมูลล่าสุดแล้ว ลองทำรายการอีกครั้ง', 4200); return; }
         st.saveMsg = 'บันทึกไม่สำเร็จ'; paintSaveMsg();
@@ -137,7 +137,7 @@
     h += '<section style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6px">' +
       '<h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">ตารางรายคน</h2><span style="font-size:12px;color:#8A857C">เลื่อนดูทั้งเดือน · หัววันที่และชื่อค้างไว้</span></div>' +
       '<div id="gridscroll" style="overflow:auto;overscroll-behavior:contain;max-height:600px;background:#fff;border-radius:24px;box-shadow:0 8px 28px rgba(60,40,20,.07)">' + gridHtml(M) + '</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="xlsx1">ดาวน์โหลด Excel เดือนนี้</button><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="xlsxall">ทุกเดือน (หลายชีต)</button></div>' + gsBox() + '</section>';
+      '</section>';
     h += '<section style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 8px">' +
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
       '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span></section>';
@@ -300,16 +300,17 @@
     } catch (e) { toast('สร้างไฟล์ไม่สำเร็จ'); }
   }
 
-  /* ---------- ส่งตารางไปไว้ใน Google Sheet (แอดมิน) ---------- */
-  function gsBox() {
-    if (!st.token) return '';
-    var b = !!st.gsBusy, dis = b ? ' disabled' : '';
-    var h = '<div style="background:#fff;border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 18px rgba(60,40,20,.06)"><div style="font-size:14px;font-weight:600;color:#2B2926">ส่งตารางนี้ไปไว้ใน Google Sheet</div>' +
-      '<div style="font-size:12.5px;line-height:1.5;color:#8A857C">สร้างแท็บใหม่ในชีทของระบบ หน้าตาเหมือนในเว็บ (ส่งซ้ำ = แทนที่แท็บเดิม) เป็นภาพ ณ เวลาที่กดส่ง ถ้าแก้ข้อมูลทีหลังต้องกดส่งใหม่</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px" data-act="gs1"' + dis + '>' + (b ? 'กำลังส่ง…' : 'ส่งเดือนนี้ไปชีท') + '</button>' +
-      '<button type="button" class="btn" style="flex:1;min-width:150px;min-height:46px;font-size:14px;background:#fff;color:#8C5A45;border:1px solid #D9C2B8" data-act="gsall"' + dis + '>ทุกเดือน</button></div>';
-    if (st.gsMsg) h += '<div style="font-size:13px;line-height:1.5;color:' + (st.gsMsg.err ? '#8C2B2B' : '#17492B') + '">' + esc(st.gsMsg.text) + (st.gsMsg.url ? ' <a href="' + esc(st.gsMsg.url) + '" target="_blank" rel="noopener" style="color:#8C5A45;font-weight:600">เปิดชีท</a>' : '') + '</div>';
-    return h + '</div>';
+  /* ---------- ซิงก์ตารางไปไว้ใน Google Sheet อัตโนมัติ (แอดมิน) ---------- */
+  // เขียนเฉพาะแท็บชื่อขึ้นต้น "ตาราง " ไม่แตะแท็บข้อมูล People / Leaves / Config และไม่กระทบการบันทึก
+  function gsBox() { return '<div id="gsbox">' + gsInner() + '</div>'; }
+  function gsInner() {
+    var b = !!st.gsBusy, m = st.gsMsg;
+    var h = '<section class="card" style="gap:12px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">ตารางใน Google Sheet</h2>' +
+      '<div style="margin-top:4px;font-size:13px;line-height:1.5;color:#8A857C">ระบบส่งตารางเวรทุกเดือนไปไว้เป็นแท็บ "ตาราง …" ในชีทให้เองทุกครั้งที่บันทึกการแก้ไข ไม่แตะข้อมูลรายชื่อ วันลา หรือการตั้งค่า</div></div>';
+    if (m) h += '<span class="chip ' + (m.err ? 'warn' : 'ok') + '" style="align-self:flex-start;height:auto;padding:6px 12px;line-height:1.4">' + esc(m.text) + '</span>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px" data-act="gsall"' + (b ? ' disabled' : '') + '>' + (b ? 'กำลังซิงก์…' : 'ซิงก์ตอนนี้') + '</button>' +
+      (m && m.url ? '<a class="btn" href="' + esc(m.url) + '" target="_blank" rel="noopener" style="flex:1;min-width:150px;text-align:center;text-decoration:none;box-sizing:border-box;background:#fff;color:#8C5A45;border:1px solid #D9C2B8;display:flex;align-items:center;justify-content:center">เปิดชีท</a>' : '') + '</div></section>';
+    return h;
   }
   function sheetPayload(M) {
     var rec = { get: function (o) { return o || {}; } };
@@ -322,24 +323,35 @@
         return [c.v === undefined ? '' : c.v, idx[k]];
       });
     });
-    return { name: sh.name, styles: styles, rows: rows, cols: sh.cols, heights: sh.heights, merges: sh.merges, freeze: sh.freeze };
+    return { name: 'ตาราง ' + sh.name, styles: styles, rows: rows, cols: sh.cols, heights: sh.heights, merges: sh.merges, freeze: sh.freeze };
   }
-  function sendSheets(all) {
-    if (!st.token || st.gsBusy) return;
-    var ms = all ? st.months.slice() : [curMonth()], i = 0, url = '';
-    st.gsBusy = true; st.gsMsg = null; render();
-    function done(msg, err) { var tt = $('#toast'); if (tt) tt.style.display = 'none'; st.gsBusy = false; st.gsMsg = { text: msg, err: !!err, url: err ? '' : url }; render(); }
+  var gsHash = {}, gsAgain = false, gsTimer = null;
+  function hashStr(t) { var h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return h + ':' + t.length; }
+  function scheduleSync(force) {
+    if (DEMO || !st.token) return;
+    clearTimeout(gsTimer);
+    gsTimer = setTimeout(function () { syncSheets(!!force); }, 1200);
+  }
+  function syncSheets(force) {
+    if (!st.token) return;
+    if (st.gsBusy) { gsAgain = true; return; }
+    var ms = st.months.slice(), i = 0, url = '', sent = 0;
+    if (force) gsHash = {};
+    st.gsBusy = true; st.gsMsg = { text: 'กำลังซิงก์ตารางไปชีท…' }; paintGs();
+    function done(msg, err) { st.gsBusy = false; st.gsMsg = { text: msg, err: !!err, url: url }; paintGs(); if (gsAgain) { gsAgain = false; scheduleSync(false); } }
     (function next() {
-      if (i >= ms.length) return done(all ? 'ส่งครบ ' + ms.length + ' เดือนแล้ว' : 'ส่งแล้ว (แท็บ ' + ms[0].short + ' ' + ((ms[0].y + 543) % 100) + ')');
-      var M = ms[i];
-      toast('กำลังส่ง ' + (i + 1) + '/' + ms.length + ' · ' + M.short + ' ' + ((M.y + 543) % 100), 60000);
-      api('exportSheet', Object.assign({ token: st.token }, sheetPayload(M))).then(function (r) {
-        if (r && r.ok) { if (r.url) url = r.url; i++; return next(); }
-        if (r && r.error === 'unauthorized') { doLogout(true); st.gsBusy = false; render(); return toast('หมดเวลาเข้าสู่ระบบ กรุณาใส่รหัสใหม่'); }
-        done('ส่งไม่สำเร็จ' + (r && r.message ? ': ' + r.message : '') + (i ? ' (ส่งไปแล้ว ' + i + ' เดือน)' : '') + (r && r.error === 'unknown_action' ? ' · ยังไม่ได้อัปเดตโค้ด Apps Script' : ''), true);
-      }).catch(function () { done('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' + (i ? ' (ส่งไปแล้ว ' + i + ' เดือน)' : ''), true); });
+      if (i >= ms.length) return done(sent ? 'ซิงก์ตารางแล้ว ' + sent + ' เดือน' : 'ตารางในชีทเป็นปัจจุบันอยู่แล้ว');
+      var M = ms[i], pl = sheetPayload(M), hk = hashStr(JSON.stringify(pl));
+      if (gsHash[M.key] === hk) { i++; return next(); }
+      st.gsMsg = { text: 'กำลังซิงก์ ' + (i + 1) + '/' + ms.length + ' · ' + M.short + ' ' + ((M.y + 543) % 100) }; paintGs();
+      api('exportSheet', Object.assign({ token: st.token }, pl)).then(function (r) {
+        if (r && r.ok) { gsHash[M.key] = hk; sent++; if (r.url) url = r.url.replace(/#gid=.*/, ''); i++; return next(); }
+        if (r && r.error === 'unauthorized') { st.gsBusy = false; st.gsMsg = null; return; }
+        done('ซิงก์ไม่สำเร็จ' + (r && r.error === 'unknown_action' ? ' · ยังไม่ได้อัปเดตโค้ด Apps Script' : (r && (r.message || r.error) ? ': ' + (r.message || r.error) : '')) + ' (ข้อมูลหลักไม่ได้รับผลกระทบ)', true);
+      }).catch(function () { done('ซิงก์ไม่สำเร็จ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ข้อมูลหลักไม่ได้รับผลกระทบ)', true); });
     })();
   }
+  function paintGs() { var el = $('#gsbox'); if (el) el.innerHTML = gsInner(); }
   /* ----- รายชื่อลา / ลากิจ (หน้าหลัก) ----- */
   function leaveDays(l) { return Math.round((Date.parse(l.to) - Date.parse(l.from)) / 864e5) + 1; }
   function leaveCard(type, title) {
@@ -633,6 +645,7 @@
       '<span class="chip ' + (lk && lk.upTo ? 'ok' : 'mut') + '" style="align-self:flex-start">' + lkTxt + '</span>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" style="flex:1;min-width:150px" data-act="locknow">ล็อกถึงเมื่อวานตอนนี้</button>' +
       (lk && lk.upTo ? '<button type="button" class="btn" style="flex:1;min-width:150px;background:#fff;color:#8C2B2B;border:1px solid #D9C2B8" data-act="unlock">ปลดล็อกทั้งหมด</button>' : '') + '</div></section>';
+    h += gsBox();
     // ลา
     var summ = leaveSummary();
     var valid = leaveValid();
@@ -749,10 +762,7 @@
       if (!window.confirm('ปลดล็อกทั้งหมด? ตารางที่ผ่านมาแล้วจะคำนวณใหม่ตามข้อมูลปัจจุบัน และอาจเปลี่ยนไป')) return;
       delete st.data.config.lock; setData(st.data); render(); persist(); toast('ปลดล็อกแล้ว');
     }
-    else if (a === 'xlsx1') exportXlsx(false);
-    else if (a === 'xlsxall') exportXlsx(true);
-    else if (a === 'gs1') sendSheets(false);
-    else if (a === 'gsall') sendSheets(true);
+    else if (a === 'gsall') syncSheets(true);
     else if (a === 'lvf') { st.lvF = v; render(); }
     else if (a === 'lvopen') { st.openLv = st.openLv || {}; st.openLv[v] = !st.openLv[v]; render(); }
     else if (a === 'ltype') { f.leaveType = v; render(); }
