@@ -238,7 +238,9 @@
     return h + '</div></section>';
   }
   function leaveStatsHtml(M) {
-    var per = {}, nRec = 0, tot = 0;
+    var t0 = todayAbsInfo(), todayIso = iso(t0.y, t0.m, t0.d), flt = st.lvF || 'all';
+    function statusOf(l) { return l.to < todayIso ? 'past' : (l.from > todayIso ? 'future' : 'now'); }
+    var per = {}, nRec = 0;
     st.data.leaves.forEach(function (l) {
       var d;
       if (M) {
@@ -246,20 +248,40 @@
         d = hi >= lo ? hi - lo + 1 : 0;
       } else d = leaveDays(l);
       if (d <= 0) return;
-      var o = per[l.key] || (per[l.key] = { lv: 0, bz: 0, n: 0 });
-      if (l.type === 'ลา') o.lv += d; else o.bz += d;
-      o.n++; nRec++; tot += d;
+      var sx = statusOf(l);
+      if (flt !== 'all' && sx !== flt) return;
+      var o = per[l.key] || (per[l.key] = { lvD: 0, lvN: 0, bzN: 0, n: 0, recs: [] });
+      if (l.type === 'ลา') { o.lvD += d; o.lvN++; } else o.bzN++;
+      o.n++; nRec++;
+      o.recs.push({ from: l.from, to: l.to, type: l.type, d: d, s: sx });
     });
-    var list = Object.keys(per).map(function (k) { return { k: k, lv: per[k].lv, bz: per[k].bz, n: per[k].n, t: per[k].lv + per[k].bz }; }).sort(function (a, b) { return (b.t - a.t) || (a.k < b.k ? -1 : 1); });
-    var mx = 1; list.forEach(function (x) { if (x.t > mx) mx = x.t; });
+    var list = Object.keys(per).map(function (k) { var o = per[k]; o.k = k; o.recs.sort(function (a, b) { return a.from < b.from ? -1 : 1; }); return o; })
+      .sort(function (a, b) { return (b.n - a.n) || (a.k < b.k ? -1 : 1); });
+    var mx = 1; list.forEach(function (x) { if (x.n > mx) mx = x.n; });
     function tile(v, l) { return '<div style="background:#FAF7F2;border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:2px"><div style="font-family:\'Noto Serif Thai\',serif;font-size:24px;font-weight:600;line-height:1.1">' + v + '</div><div style="font-size:12px;color:#8A857C;line-height:1.4">' + l + '</div></div>'; }
-    var h = '<section class="card" style="gap:14px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">สถิติการลา</h2><div style="margin-top:4px;font-size:12px;color:#8A857C">นับจากรายการลาที่แอดมินบันทึก · รวมทุกส่วนและชุดสลับ 4 คน</div></div>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">' + tile(nRec, 'รายการลา') + tile(list.length, 'คนที่ลา') + tile(tot, 'วันลารวม') + '</div>';
+    var SB = { past: ['ลาแล้ว', '#E3F0DF', '#3F6B35'], now: ['กำลังลา', '#E1ECF8', '#2F5D96'], future: ['ยังไม่ถึง', '#F8EAC8', '#8A6A1E'] };
+    var h = '<section class="card" style="gap:14px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">สถิติการลา</h2><div style="margin-top:4px;font-size:12px;color:#8A857C">นับเป็นจำนวนครั้งที่ลา · แตะชื่อเพื่อดูวันที่ · รวมทุกส่วนและชุดสลับ 4 คน</div></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">' + tile(nRec, 'ครั้งที่ลาทั้งหมด') + tile(list.length, 'คนที่ลา') + '</div>';
+    var FL = [['all', 'ทั้งหมด'], ['now', 'กำลังลาอยู่'], ['past', 'ลาแล้ว'], ['future', 'ยังไม่ถึง']];
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">' + FL.map(function (f) {
+      var on = f[0] === flt;
+      return '<button type="button" data-act="lvf" data-v="' + f[0] + '" style="border:0;cursor:pointer;font-family:inherit;font-size:12px;padding:6px 12px;border-radius:999px;background:' + (on ? '#2B2926' : '#F1ECE4') + ';color:' + (on ? '#fff' : '#5D5A54') + '">' + f[1] + '</button>';
+    }).join('') + '</div>';
     if (!list.length) h += '<div style="font-size:14px;color:#8A857C">ยังไม่มีรายการลาในช่วงนี้</div>';
+    st.openLv = st.openLv || {};
     list.forEach(function (x) {
-      h += '<div style="display:flex;flex-direction:column;gap:5px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.3">' + esc(nm(x.k)) + '</div><div style="font-size:14px;font-weight:600;white-space:nowrap">' + x.t + ' วัน</div></div>' +
-        '<div style="display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1ECE4"><span style="width:' + (x.lv / mx * 100).toFixed(1) + '%;background:#CFC8BB"></span><span style="width:' + (x.bz / mx * 100).toFixed(1) + '%;background:#E3C98A"></span></div>' +
-        '<div style="font-size:12px;color:#8A857C">ลา ' + x.lv + ' วัน · ลากิจ ' + x.bz + ' วัน · ' + x.n + ' ครั้ง</div></div>';
+      var open = !!st.openLv[x.k];
+      h += '<div style="border-top:1px solid #F1ECE4;padding-top:12px;display:flex;flex-direction:column;gap:6px">' +
+        '<button type="button" data-act="lvopen" data-v="' + esc(x.k) + '" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="font-size:14px;line-height:1.5"><span style="color:#8A857C;display:inline-block;width:14px">' + (open ? '▾' : '▸') + '</span>' + esc(nm(x.k)) + '</div><div style="font-size:13px;font-weight:600;white-space:nowrap;text-align:right;line-height:1.5">' + (x.lvN ? 'ลา ' + x.lvD + ' วัน ' + x.lvN + ' ครั้ง' : '') + (x.lvN && x.bzN ? '<br>' : '') + (x.bzN ? 'ลากิจ ' + x.bzN + ' ครั้ง' : '') + '</div></div>' +
+        '<div style="display:flex;height:14px;border-radius:999px;overflow:hidden;background:#F1ECE4"><span style="width:' + (x.lvN / mx * 100).toFixed(1) + '%;background:#CFC8BB"></span><span style="width:' + (x.bzN / mx * 100).toFixed(1) + '%;background:#E3C98A"></span></div></button>' +
+        '';
+      if (open) {
+        h += '<div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">' + x.recs.map(function (r, i) {
+          var sb = SB[r.s], rng = r.from === r.to ? thDate(r.from) : thDate(r.from) + ' – ' + thDate(r.to);
+          return '<div style="display:flex;align-items:center;gap:8px;background:#FAF7F2;border-radius:12px;padding:8px 10px"><span style="font-size:12px;color:#8A857C;min-width:14px">' + (i + 1) + '</span><div style="flex:1;min-width:0"><div style="font-size:14px">' + rng + '</div><div style="font-size:12px;color:#8A857C">' + (r.type === 'ลา' ? 'ลา · ' + r.d + ' วัน' : 'ลากิจ') + '</div></div><span style="font-size:11px;padding:3px 10px;border-radius:999px;background:' + sb[1] + ';color:' + sb[2] + '">' + sb[0] + '</span></div>';
+        }).join('') + '</div>';
+      }
+      h += '</div>';
     });
     h += '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#5D5A54;border-top:1px solid #F1ECE4;padding-top:12px"><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#CFC8BB;margin-right:6px"></span>ลา</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E3C98A;margin-right:6px"></span>ลากิจ</span></div></section>';
     return h;
@@ -603,6 +625,8 @@
       if (!window.confirm('ปลดล็อกทั้งหมด? ตารางที่ผ่านมาแล้วจะคำนวณใหม่ตามข้อมูลปัจจุบัน และอาจเปลี่ยนไป')) return;
       delete st.data.config.lock; setData(st.data); render(); persist(); toast('ปลดล็อกแล้ว');
     }
+    else if (a === 'lvf') { st.lvF = v; render(); }
+    else if (a === 'lvopen') { st.openLv = st.openLv || {}; st.openLv[v] = !st.openLv[v]; render(); }
     else if (a === 'ltype') { f.leaveType = v; render(); }
     else if (a === 'addleave') {
       if (!leaveValid()) return;
