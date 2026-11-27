@@ -52,7 +52,7 @@
     function blockedAbs(id, a) { return coreBlocked(id) || !!leaveAtAbs(id, a); }
 
     function qList(kind) {
-      return people.filter(function (p) { return !p.core && p.section === 'rot' && effQ(p) === kind; })
+      return people.filter(function (p) { return !p.core && CORE.indexOf(p.key) < 0 && p.section === 'rot' && effQ(p) === kind; })
         .sort(function (a, b) { return (+a.ord) - (+b.ord); }).map(function (p) { return p.key; });
     }
     var Q = { w: { list: qList('w'), ptr: 0, owed: [] }, g: { list: qList('g'), ptr: 0, owed: [] } };
@@ -74,22 +74,26 @@
     // ช่วงเวร 2 วัน ของ 4 คน (A/B) พร้อมกฎ "เบิ้ลต่อ" ที่รอยต่อเดือน
     var info = {};
     function monthIdxOf(a) { for (var i = months.length - 1; i >= 0; i--) if (a > months[i].base) return i; return 0; }
-    info[1] = { p: 'B', pos: 1, mi: -1 };
-    info[2] = { p: 'B', pos: 0, mi: 0 };
-    info[3] = { p: 'B', pos: 1, mi: 0 };
+    // แต่ละเดือนคู่หนึ่งเป็น สว. อีกคู่เป็นเวร บก.ร้อย สลับคู่ละเดือน (ธ.ค. 69 = คู่ A เป็น สว.)
+    // รอยต่อเดือน: คู่ที่เป็น สว. ต้องควบต่อเป็นเวรทันที (สว. ก่อน แล้วเวร)
+    //  - ก่อนวันที่ 1 จบด้วย สว. → คู่เดิมควบต่อเป็นเวรในช่วงแรกของเดือนใหม่
+    //  - ก่อนวันที่ 1 จบด้วยเวร → อีกคู่เข้ามาควบ สว. ก่อน (บทบาทเดือนเก่า) แล้วต่อเวร
+    function svPairOf(mi) { return ((mi % 2) + 2) % 2 === 1 ? 'B' : 'A'; }
+    info[1] = { p: 'B', pos: 1, sv: true };   // 30 พ.ย.–1 ธ.ค. คู่ B สว.
+    info[2] = { p: 'B', pos: 0, sv: false };  // 2–3 ธ.ค. คู่ B ควบต่อเวร
+    info[3] = { p: 'B', pos: 1, sv: false };
     (function () {
-      var x = 4, prev = 'B', force = false;
+      var x = 4, prevP = 'B', prevSv = false, pend = null;
       while (x <= lastAbs) {
-        var isStart = starts.indexOf(x) >= 0;
-        var pp = (force || isStart) ? prev : (prev === 'A' ? 'B' : 'A');
-        force = false;
-        info[x] = { p: pp, pos: 0, mi: monthIdxOf(x) };
-        if (x + 1 <= lastAbs) {
-          var nxtStart = starts.indexOf(x + 1) >= 0;
-          info[x + 1] = { p: pp, pos: 1, mi: nxtStart ? monthIdxOf(x) : monthIdxOf(x + 1) };
-          if (nxtStart) force = true;
-        }
-        prev = pp; x += 2;
+        var blk, q = prevP === 'A' ? 'B' : 'A';
+        if (pend) { blk = pend; pend = null; }
+        else if (starts.indexOf(x) >= 0 || starts.indexOf(x + 1) >= 0) {
+          if (prevSv) blk = { p: prevP, sv: false };
+          else { blk = { p: q, sv: true }; pend = { p: q, sv: false }; }
+        } else blk = { p: q, sv: svPairOf(monthIdxOf(x)) === q };
+        info[x] = { p: blk.p, pos: 0, sv: blk.sv };
+        if (x + 1 <= lastAbs) info[x + 1] = { p: blk.p, pos: 1, sv: blk.sv };
+        prevP = blk.p; prevSv = blk.sv; x += 2;
       }
     })();
 
@@ -145,8 +149,7 @@
       else {
         var f = info[a];
         var isB = f.p === 'B';
-        var bSv = ((f.mi % 2) + 2) % 2 === 1;
-        var pairSv = isB ? bSv : !bSv;
+        var pairSv = f.sv;
         if (pairSv) {
           var LS = isB ? CORE_B : CORE_A;
           if (f.pos === 0 || !curSv[f.p]) curSv[f.p] = LS[svCnt[f.p]++ % 2];
@@ -171,7 +174,8 @@
     var res = {};
     months.forEach(function (mo) {
       var O = out[mo.key];
-      var rows = CORE.filter(function (id) { return !!byKey[id]; }).concat(O.assigned);
+      // 4 คนชุดสลับอยู่บนสุดเสมอ และห้ามไปปนในส่วนหมุนเวียนข้างล่าง
+      var rows = CORE.filter(function (id) { return !!byKey[id]; }).concat(O.assigned.filter(function (id) { return CORE.indexOf(id) < 0; }));
       L.forEach(function (l) {
         var lo = l.a1, hi = l.a2;
         if (hi > mo.base && lo <= mo.base + mo.N && rows.indexOf(l.key) < 0 && byKey[l.key]) rows.push(l.key);
