@@ -140,7 +140,7 @@
       '</section>';
     h += '<section style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 8px">' +
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
-      '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span><span class="legpill"><span class="pill sv dg">ดอง</span>ดองเวร</span></section>';
+      '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span><span class="legpill"><span class="pill sv dg">ดอง</span>ดองเวร</span><span class="legpill"><span class="pill sp">ผช.</span>ผช. อย่างเดียว (วันดอง)</span></section>';
     h += headcountCard();
     h += dongCard() + leaveCard('ลา', 'รายชื่อลา') + leaveCard('ลากิจ', 'รายชื่อลากิจ');
     h += listCards();
@@ -153,6 +153,7 @@
       WDF[M.wd(sel)] + 'ที่ ' + sel + ' ' + M.title + '</div>' + (isTodayIn(M, sel) ? '<span class="pill sp">วันนี้</span>' : '') + '</div>';
     h += '<div style="display:flex;flex-direction:column;gap:6px"><span class="pill ' + (v ? v.type : 'lv') + '" style="align-self:flex-start">' + (v ? (v.type === 'sp' ? 'สว./ผช.' : 'สว.') + (v.dg ? ' · ดองเวร' : '') : 'ยังไม่มีผู้ขึ้นเวร') + '</span>' +
       '<div style="font-family:\'Noto Serif Thai\',serif;font-size:22px;font-weight:600;line-height:1.35">' + (v ? esc(nm(v.id)) : '—') + '</div></div>';
+    if (v && v.ast) h += '<div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #F1ECE4;padding-top:14px"><span class="pill sp" style="align-self:flex-start">ผช.</span><div style="font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600;line-height:1.35">' + esc(nm(v.ast)) + '</div></div>';
     var bk = M.bkOf(sel).filter(function (id) { return M.bk[sel] && !M.leaveAt(id, sel) && person(id) && (M.draft ? person(id).section === 'ch' : true); });
     if (M.bk[sel] && bk.length) h += '<div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #F1ECE4;padding-top:14px"><span class="pill bk" style="align-self:flex-start">เวร บก.ร้อย</span><div style="font-size:16px;line-height:1.5">' + bk.map(function (id) { return esc(nm(id)); }).join(' และ ') + '</div></div>';
     return h + '</section>';
@@ -180,7 +181,7 @@
       for (var dd = 1; dd <= M.N; dd++) {
         var role = M.roleOf(id, dd);
         var dgc = (role === 'sv' || role === 'sp') && M.svD[dd] && M.svD[dd].dg && M.svD[dd].id === id;
-        h += '<div class="cell' + (isTodayIn(M, dd) ? ' tc' : '') + '">' + (role ? '<span class="pill ' + role + (dgc ? ' dg' : '') + '">' + (dgc ? 'ดอง' : LABEL[role]) + '</span>' : '') + '</div>';
+        h += '<div class="cell' + (isTodayIn(M, dd) ? ' tc' : '') + '">' + (role ? '<span class="pill ' + role + (dgc ? ' dg' : '') + '">' + (dgc ? 'ดอง' : (role === 'sp' && M.svD[dd] && M.svD[dd].ast === id ? 'ผช.' : LABEL[role])) + '</span>' : '') + '</div>';
       }
       h += '</div>';
     });
@@ -271,7 +272,7 @@
         if (role) {
           if (role === 'sv' || role === 'sp') cSv++; else if (role === 'bk') cBk++; else cLv++;
           var xdg = (role === 'sv' || role === 'sp') && M.svD[dd] && M.svD[dd].dg && M.svD[dd].id === id;
-          r[1 + dd] = { v: xdg ? 'ดอง' : LABEL[role], s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[role][0], color: XC[role][1], border: true }) };
+          r[1 + dd] = { v: xdg ? 'ดอง' : (role === 'sp' && M.svD[dd] && M.svD[dd].ast === id ? 'ผช.' : LABEL[role]), s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[role][0], color: XC[role][1], border: true }) };
         } else r[1 + dd] = { s: S.get({ fill: tint, border: true }) };
       }
       var ss = S.get({ b: 1, h: 'center', fill: tint, border: true });
@@ -603,7 +604,7 @@
       if (M.key < t.key) return;
       for (var d = (M.key === t.key ? t.d : 1); d <= M.N && up.length < 5; d++) {
         var v = M.svD[d];
-        if (v) up.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #F1ECE4;padding-top:10px"><div style="min-width:0"><div style="font-size:12px;color:#8A857C">' + WDF[M.wd(d)] + ' ' + d + ' ' + M.short + '</div><div style="font-size:15px;font-weight:600;line-height:1.35">' + esc(nm(v.id)) + '</div></div><span class="pill ' + v.type + '">' + (v.type === 'sp' ? 'สว./ผช.' : 'สว.') + '</span></div>');
+        if (v) up.push('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #F1ECE4;padding-top:10px"><div style="min-width:0"><div style="font-size:12px;color:#8A857C">' + WDF[M.wd(d)] + ' ' + d + ' ' + M.short + '</div><div style="font-size:15px;font-weight:600;line-height:1.35">' + esc(nm(v.id)) + (v.ast ? ' + ' + esc(nm(v.ast)) + ' (ผช.)' : '') + '</div></div><span class="pill ' + v.type + '">' + (v.type === 'sp' ? 'สว./ผช.' : 'สว.') + '</span></div>');
       }
     });
     h += leaveStatsHtml(st.statM === 'all' ? null : st.model[st.statM]);

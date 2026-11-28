@@ -118,7 +118,7 @@
       var days = {};
       for (var x = 1; x <= upTo; x++) {
         var mx = months[monthIdxOf(x)], dx = x - mx.base, Ox = out[mx.key];
-        if (Ox.svD[dx]) days[x] = Ox.svD[dx].id + '|' + (Ox.svD[dx].type === 'sp' ? 'p' : 'v') + (Ox.svD[dx].dg ? '|d' : '');
+        if (Ox.svD[dx]) days[x] = Ox.svD[dx].id + '|' + (Ox.svD[dx].type === 'sp' ? 'p' : 'v') + (Ox.svD[dx].dg ? '|d' + (Ox.svD[dx].ast ? '|' + Ox.svD[dx].ast : '') : '');
         else if (Ox.bk[dx]) days[x] = 'b:' + Ox.bk[dx].join(',');
       }
       function qs(q) { return { ptr: q.ptr, key: q.list.length ? q.list[q.ptr % q.list.length] : '', owed: q.owed.slice() }; }
@@ -146,6 +146,7 @@
             var pr = ent.split('|');
             O.svD[d] = { id: pr[0], type: pr[1] === 'p' ? 'sp' : 'sv' };
             if (pr[2] === 'd') O.svD[d].dg = 1;
+            if (pr[3]) { O.svD[d].ast = pr[3]; if (byKey[pr[3]] && O.assigned.indexOf(pr[3]) < 0) O.assigned.push(pr[3]); }
             if (CORE.indexOf(pr[0]) < 0 && byKey[pr[0]] && O.assigned.indexOf(pr[0]) < 0) O.assigned.push(pr[0]);
           }
         }
@@ -169,14 +170,22 @@
         for (var ci = 0; ci < cands.length; ci++) if (!blockedAbs(cands[ci], a)) { c = cands[ci]; break; }
         if (c) { O.svD[d] = { id: c, type: 'sv' }; continue; }
       }
-      var dk = dongAt(a);
-      if (dk) {
-        O.svD[d] = { id: dk, type: effQ(byKey[dk]) === 'g' ? 'sp' : 'sv', dg: 1 };
-        if (O.assigned.indexOf(dk) < 0) O.assigned.push(dk);
-        continue;
-      }
+      // จังหวะคิวล็อกตายตัว: แดง (สว.) 2 วัน เขียว (สว./ผช.) 1 วัน สลับไปเรื่อยๆ วันดองก็นับเป็นหนึ่งช่อง
       var green = idx % 3 === 2;
       idx++;
+      var dk = dongAt(a);
+      if (dk) {
+        // ดองตรงวันแดง: คนดองขึ้น สว. แทน คนที่ถึงคิวขยับไปรอบถัดไป
+        // ดองตรงวันเขียว: ขึ้น 2 คน คนดองเป็น สว. + ผช. ตามคิวขึ้นตามปกติ (คิว ผช. ไม่ขยับ)
+        O.svD[d] = { id: dk, type: 'sv', dg: 1 };
+        if (O.assigned.indexOf(dk) < 0) O.assigned.push(dk);
+        if (green) {
+          var ga = pick('g', a);
+          if (ga && ga !== dk) { O.svD[d].ast = ga; if (O.assigned.indexOf(ga) < 0) O.assigned.push(ga); }
+          else if (ga === dk) Q.g.owed.unshift(ga);
+        }
+        continue;
+      }
       var p = pick(green ? 'g' : 'w', a) || pick(green ? 'w' : 'g', a);
       if (p) {
         O.svD[d] = { id: p, type: (byKey[p] && effQ(byKey[p]) === 'g') ? 'sp' : 'sv' };
@@ -204,12 +213,14 @@
         roleOf: function (id, d) {
           if (mo.base + d <= lockAbs) {
             if (O.svD[d] && O.svD[d].id === id) return O.svD[d].type;
+            if (O.svD[d] && O.svD[d].ast === id) return 'sp';
             var bl = O.bk[d];
             if (bl && bl.indexOf(id) >= 0) return 'bk';
           }
           var lv = leaveAtAbs(id, mo.base + d);
           if (lv) return lv.type === 'ลา' ? 'lv' : 'bz';
           if (O.svD[d] && O.svD[d].id === id) return O.svD[d].type;
+          if (O.svD[d] && O.svD[d].ast === id) return 'sp';
           var b = O.bk[d];
           if (b && b.indexOf(id) >= 0 && !coreBlocked(id)) return 'bk';
           return null;
