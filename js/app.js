@@ -10,7 +10,7 @@
   var st = {
     data: null, model: null, tab: 'view', mkey: null, sel: 1, q: '', statM: 'all',
     token: null, adminErr: '', busy: false, saveMsg: '',
-    form: { leaveKeys: [], lvq: '', leaveType: 'ลา', from: '', to: '', nName: '', nDest: 'rotw', nErr: '', pick: { tr: '', ch: '', ltc: '', mis: '' }, trNote: '', oldPw: '', newPw: '', pwMsg: '' }
+    form: { leaveKeys: [], lvq: '', leaveType: 'ลา', from: '', to: '', nName: '', nDest: 'rotw', nErr: '', pick: { tr: '', ch: '', ltc: '', mis: '' }, trNote: '', dKey: '', dFrom: '', dTo: '', oldPw: '', newPw: '', pwMsg: '' }
   };
   try { st.token = sessionStorage.getItem('dr_token') || null; } catch (e) {}
 
@@ -69,7 +69,7 @@
     st.saveMsg = 'กำลังบันทึก…'; paintSaveMsg();
     saveChain = saveChain.then(function () {
       return api('save', { token: st.token, rev: st.data.rev, people: st.data.people, leaves: st.data.leaves, config: st.data.config }).then(function (r) {
-        if (r.ok) { st.data.rev = r.rev; st.saveMsg = 'บันทึกแล้ว'; paintSaveMsg(); scheduleSync(false); return; }
+        if (r.ok) { if (!DEMO && !r.dong && (st.data.config.dong || []).length) toast('หลังบ้านยังไม่รองรับดองเวร ข้อมูลดองเวรจะไม่ถูกบันทึก กรุณาอัปเดตโค้ด Apps Script', 6000); st.data.rev = r.rev; st.saveMsg = 'บันทึกแล้ว'; paintSaveMsg(); scheduleSync(false); return; }
         if (r.error === 'unauthorized') { doLogout(true); toast('หมดเวลาเข้าสู่ระบบ กรุณาใส่รหัสใหม่'); return; }
         if (r.error === 'stale' && r.state) { setData(r.state); st.saveMsg = ''; render(); toast('มีการแก้ไขจากที่อื่น โหลดข้อมูลล่าสุดแล้ว ลองทำรายการอีกครั้ง', 4200); return; }
         st.saveMsg = 'บันทึกไม่สำเร็จ'; paintSaveMsg();
@@ -140,9 +140,9 @@
       '</section>';
     h += '<section style="display:flex;flex-wrap:wrap;gap:10px 20px;padding:4px 8px">' +
       '<span class="legpill"><span class="pill sv">สว.</span>สิบเวร</span><span class="legpill"><span class="pill sp">สว./ผช.</span>สิบเวร + ผู้ช่วย</span>' +
-      '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span></section>';
+      '<span class="legpill"><span class="pill bk">เวร</span>เวร บก.ร้อย</span><span class="legpill"><span class="pill lv">ลา</span>ลา</span><span class="legpill"><span class="pill bz">กิจ</span>ลากิจ</span><span class="legpill"><span class="pill sv dg">ดอง</span>ดองเวร</span></section>';
     h += headcountCard();
-    h += leaveCard('ลา', 'รายชื่อลา') + leaveCard('ลากิจ', 'รายชื่อลากิจ');
+    h += dongCard() + leaveCard('ลา', 'รายชื่อลา') + leaveCard('ลากิจ', 'รายชื่อลากิจ');
     h += listCards();
     h += '<footer style="font-size:12px;color:#8A857C;line-height:1.6;padding:8px 8px 0 8px">' + (M.draft ? 'ตารางเดือนนี้เป็นร่าง คำนวณจากกฎหมุนเวียนตามลำดับรายชื่อ ชุดสลับ 4 คนสลับบทบาทสิบเวร/เวร บก.ร้อย ทุกเดือน คนลาถูกตัดออกและกลับเข้าคิวอัตโนมัติ · ตารางอาจเปลี่ยนเมื่อแอดมินปรับรายชื่อ' : 'ข้อมูล พ.ย. จากตารางที่จัดไว้แล้ว · แอดมินเป็นผู้อัปเดตตาราง') + '</footer>';
     return h;
@@ -151,7 +151,7 @@
     var sel = Math.min(st.sel, M.N), v = M.svD[sel];
     var h = '<section class="card" style="gap:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-size:14px;color:#8A857C">' +
       WDF[M.wd(sel)] + 'ที่ ' + sel + ' ' + M.title + '</div>' + (isTodayIn(M, sel) ? '<span class="pill sp">วันนี้</span>' : '') + '</div>';
-    h += '<div style="display:flex;flex-direction:column;gap:6px"><span class="pill ' + (v ? v.type : 'lv') + '" style="align-self:flex-start">' + (v ? (v.type === 'sp' ? 'สว./ผช.' : 'สว.') : 'ยังไม่มีผู้ขึ้นเวร') + '</span>' +
+    h += '<div style="display:flex;flex-direction:column;gap:6px"><span class="pill ' + (v ? v.type : 'lv') + '" style="align-self:flex-start">' + (v ? (v.type === 'sp' ? 'สว./ผช.' : 'สว.') + (v.dg ? ' · ดองเวร' : '') : 'ยังไม่มีผู้ขึ้นเวร') + '</span>' +
       '<div style="font-family:\'Noto Serif Thai\',serif;font-size:22px;font-weight:600;line-height:1.35">' + (v ? esc(nm(v.id)) : '—') + '</div></div>';
     var bk = M.bkOf(sel).filter(function (id) { return M.bk[sel] && !M.leaveAt(id, sel) && person(id) && (M.draft ? person(id).section === 'ch' : true); });
     if (M.bk[sel] && bk.length) h += '<div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #F1ECE4;padding-top:14px"><span class="pill bk" style="align-self:flex-start">เวร บก.ร้อย</span><div style="font-size:16px;line-height:1.5">' + bk.map(function (id) { return esc(nm(id)); }).join(' และ ') + '</div></div>';
@@ -179,7 +179,8 @@
       h += '<div class="' + rc + '" style="' + cols + '"><div class="nmcell"><span style="font-size:14px;font-weight:600;line-height:1.25">' + esc(pn.first) + '</span><span style="font-size:11px;color:#8A857C;line-height:1.25">' + esc(nm(id)) + '</span></div>';
       for (var dd = 1; dd <= M.N; dd++) {
         var role = M.roleOf(id, dd);
-        h += '<div class="cell' + (isTodayIn(M, dd) ? ' tc' : '') + '">' + (role ? '<span class="pill ' + role + '">' + LABEL[role] + '</span>' : '') + '</div>';
+        var dgc = (role === 'sv' || role === 'sp') && M.svD[dd] && M.svD[dd].dg && M.svD[dd].id === id;
+        h += '<div class="cell' + (isTodayIn(M, dd) ? ' tc' : '') + '">' + (role ? '<span class="pill ' + role + (dgc ? ' dg' : '') + '">' + (dgc ? 'ดอง' : LABEL[role]) + '</span>' : '') + '</div>';
       }
       h += '</div>';
     });
@@ -269,7 +270,8 @@
         var role = M.roleOf(id, dd);
         if (role) {
           if (role === 'sv' || role === 'sp') cSv++; else if (role === 'bk') cBk++; else cLv++;
-          r[1 + dd] = { v: LABEL[role], s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[role][0], color: XC[role][1], border: true }) };
+          var xdg = (role === 'sv' || role === 'sp') && M.svD[dd] && M.svD[dd].dg && M.svD[dd].id === id;
+          r[1 + dd] = { v: xdg ? 'ดอง' : LABEL[role], s: S.get({ b: 1, sz: 9, h: 'center', fill: XC[role][0], color: XC[role][1], border: true }) };
         } else r[1 + dd] = { s: S.get({ fill: tint, border: true }) };
       }
       var ss = S.get({ b: 1, h: 'center', fill: tint, border: true });
@@ -362,6 +364,46 @@
     })();
   }
   function paintGs() { var el = $('#gsbox'); if (el) el.innerHTML = gsInner(); }
+  /* ----- ดองเวร ----- */
+  function dongList() { return (st.data.config.dong || []).slice().sort(function (a, b) { return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); }); }
+  // วันที่ได้ขึ้นจริงจากการดอง (ไม่นับวันของชุด 4 คน และวันที่ลา)
+  function dongDays(g) {
+    var out = [], a1 = E.absOfIso(g.from), a2 = E.absOfIso(g.to);
+    st.months.forEach(function (M) {
+      for (var d = 1; d <= M.N; d++) { var a = M.base + d, v = M.svD[d]; if (a >= a1 && a <= a2 && v && v.dg && v.id === g.key) out.push(d + ' ' + M.short); }
+    });
+    return out;
+  }
+  function dongRange(g) { return thDate(g.from) + (g.to > g.from ? ' – ' + thDate(g.to) : ''); }
+  function dongCard() {
+    var items = dongList();
+    if (!items.length) return '';
+    var h = '<section class="card"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:19px;font-weight:600">รายชื่อดองเวร</h2><span style="font-size:13px;color:#8A857C">' + items.length + ' รายการ</span></div><div style="max-height:320px;overflow-y:auto">';
+    items.forEach(function (g, i) {
+      var ds = dongDays(g);
+      h += '<div class="lrow" style="padding:9px 2px"><span style="width:28px;font-size:12px;color:#8A857C;text-align:right;flex:none">' + (i + 1) + '</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font-size:14px;line-height:1.4">' + esc(nm(g.key)) + '</span><span style="font-size:12px;color:#8A857C">' + dongRange(g) + ' · ขึ้นจริง ' + ds.length + ' วัน' + (ds.length ? ' (' + ds.join(', ') + ')' : '') + '</span></div></div>';
+    });
+    return h + '</div></section>';
+  }
+  function dongAdminHtml() {
+    var f = st.form;
+    var options = st.data.people.filter(function (p) { return !p.core && E.CORE.indexOf(p.key) < 0 && p.section !== 'tr'; }).sort(function (a, b) { return a.ord - b.ord; })
+      .map(function (p) { return { id: p.key, label: p.name + ' · ' + SEC_LABEL[p.section] }; });
+    var ok = f.dKey && f.dFrom && f.dTo && f.dTo >= f.dFrom;
+    var h = '<section class="card" style="gap:14px"><div><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">ดองเวร</h2><div style="margin-top:4px;font-size:13px;line-height:1.5;color:#8A857C">เลือกชื่อและวันที่ ระบบให้คนนั้นขึ้น สว. แทนคิวในวันนั้น คนที่ถึงคิวเดิมจะขยับไปรอบถัดไป ไม่ใช้กับ 4 คนชุดสลับ และวันของชุด 4 คนจะถูกข้าม</div></div>' +
+      '<select class="fld" id="dgk">' + opt(options, f.dKey, 'เลือกชื่อ') + '</select>' +
+      '<div style="display:flex;gap:12px"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><label for="dgf" style="font-size:14px;font-weight:500;color:#5D5A54">ตั้งแต่วันที่</label><input id="dgf" class="fld" type="date" value="' + esc(f.dFrom) + '" min="2026-12-01"></div>' +
+      '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><label for="dgt" style="font-size:14px;font-weight:500;color:#5D5A54">ถึงวันที่</label><input id="dgt" class="fld" type="date" value="' + esc(f.dTo) + '" min="2026-12-01"></div></div>' +
+      (f.dFrom && f.dTo && f.dTo < f.dFrom ? '<div style="font-size:13px;color:#8C2B2B">วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม</div>' : '') +
+      '<button type="button" class="btn" data-act="adddong"' + (ok ? '' : ' disabled') + '>เพิ่มดองเวร</button>';
+    var items = dongList();
+    if (!items.length) h += '<div style="font-size:14px;color:#8A857C">ยังไม่มีรายการ</div>';
+    items.forEach(function (g) {
+      var ds = dongDays(g);
+      h += '<div class="lrow" style="justify-content:space-between"><div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:15px;font-weight:600">' + esc(nm(g.key)) + '</span><span style="font-size:13px;color:#5D5A54">' + dongRange(g) + ' · ขึ้นจริง ' + ds.length + ' วัน' + (ds.length ? ' (' + ds.join(', ') + ')' : '') + '</span></div><button type="button" class="del" data-act="deldong" data-v="' + esc(g.id) + '">ลบ</button></div>';
+    });
+    return h + '</section>';
+  }
   /* ----- รายชื่อลา / ลากิจ (หน้าหลัก) ----- */
   function leaveDays(l) { return Math.round((Date.parse(l.to) - Date.parse(l.from)) / 864e5) + 1; }
   function leaveCard(type, title) {
@@ -673,6 +715,7 @@
       h += '<div style="background:#fff;border-radius:20px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 4px 18px rgba(60,40,20,.05)"><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><div style="font-size:15px;font-weight:600">' + esc(nm(l.key)) + '</div><div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5D5A54"><span class="pill ' + (l.type === 'ลา' ? 'lv' : 'bz') + '">' + (l.type === 'ลา' ? 'ลา' : 'ลากิจ') + '</span><span>' + thDate(l.from) + (l.to > l.from ? ' – ' + thDate(l.to) : '') + ' · ' + days + ' วัน</span></div></div><button type="button" class="del" data-act="delleave" data-v="' + esc(l.id) + '">ลบ</button></div>';
     });
     h += '</section>';
+    h += dongAdminHtml();
     // เพิ่มคน
     h += '<section class="card" style="gap:12px"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 style="margin:0;font-family:\'Noto Serif Thai\',serif;font-size:20px;font-weight:600">เพิ่มคน</h2><span style="font-size:13px;color:#8A857C">กำลังพลใหม่</span></div>' +
       '<div style="font-size:12px;line-height:1.5;color:#8A857C">ใส่ยศ ชื่อ นามสกุล แล้วเลือกว่าจะอยู่ส่วนไหน ถ้าเข้ารายชื่อหมุนเวียน ชื่อจะต่อท้ายคิว</div>' +
@@ -748,6 +791,9 @@
     };
     var ff = $('#ff'); if (ff) ff.onchange = function () { st.form.from = ff.value; if (!st.form.to || st.form.to < ff.value) st.form.to = ff.value; render(); };
     var ft = $('#ft'); if (ft) ft.onchange = function () { st.form.to = ft.value; render(); };
+    var dgk = $('#dgk'); if (dgk) dgk.onchange = function () { st.form.dKey = dgk.value; render(); };
+    var dgf = $('#dgf'); if (dgf) dgf.onchange = function () { st.form.dFrom = dgf.value; if (!st.form.dTo || st.form.dTo < dgf.value) st.form.dTo = dgf.value; render(); };
+    var dgt = $('#dgt'); if (dgt) dgt.onchange = function () { st.form.dTo = dgt.value; render(); };
     var nn = $('#nn'); if (nn) nn.oninput = function () { st.form.nName = nn.value; st.form.nErr = ''; };
     var nd = $('#nd'); if (nd) nd.onchange = function () { st.form.nDest = nd.value; };
     var trn = $('#trn'); if (trn) trn.oninput = function () { st.form.trNote = trn.value; };
@@ -784,6 +830,15 @@
         f.from = ''; f.to = ''; f.leaveKeys = []; f.lvq = '';
       }, 'เพิ่มรายการลา ' + cnt + ' คนแล้ว');
     }
+    else if (a === 'adddong') {
+      if (!f.dKey || !f.dFrom || !f.dTo || f.dTo < f.dFrom) return;
+      mutate(function () {
+        var c = st.data.config; c.dong = (c.dong || []).slice();
+        c.dong.push({ id: 'g' + Date.now().toString(36), key: f.dKey, from: f.dFrom, to: f.dTo });
+        f.dKey = ''; f.dFrom = ''; f.dTo = '';
+      }, 'เพิ่มดองเวรแล้ว');
+    }
+    else if (a === 'deldong') mutate(function () { st.data.config.dong = (st.data.config.dong || []).filter(function (g) { return g.id !== v; }); });
     else if (a === 'delleave') mutate(function () { st.data.leaves = st.data.leaves.filter(function (l) { return l.id !== v; }); });
     else if (a === 'addperson') {
       var n = (f.nName || '').trim().replace(/\s+/g, ' ');
@@ -806,7 +861,7 @@
     else if (a === 'ret') mutate(function () { var p = st.byKey[v]; p.section = home(p); p.note = ''; });
     else if (a === 'delperson') {
       if (!confirm('ลบชื่อนี้ออกจากระบบ?')) return;
-      mutate(function () { st.data.people = st.data.people.filter(function (p) { return p.key !== v; }); st.data.leaves = st.data.leaves.filter(function (l) { return l.key !== v; }); });
+      mutate(function () { st.data.people = st.data.people.filter(function (p) { return p.key !== v; }); st.data.leaves = st.data.leaves.filter(function (l) { return l.key !== v; }); st.data.config.dong = (st.data.config.dong || []).filter(function (g) { return g.key !== v; }); });
     }
     else if (a === 'chpw') {
       var op = ($('#op') || {}).value, np = ($('#np') || {}).value;

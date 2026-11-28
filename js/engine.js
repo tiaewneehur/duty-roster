@@ -50,6 +50,13 @@
       return null;
     }
     function blockedAbs(id, a) { return coreBlocked(id) || !!leaveAtAbs(id, a); }
+    // ดองเวร: กำหนดคนขึ้น สว. แทนคิวในวันที่ระบุ (ไม่ใช้กับ 4 คนชุดสลับ) คิวเดิมไม่ถูกใช้ จึงขยับไปรอบถัดไป
+    var DG = ((config && config.dong) || []).filter(function (g) { return g && byKey[g.key] && CORE.indexOf(g.key) < 0 && byKey[g.key].section !== 'tr'; })
+      .map(function (g) { return { id: g.id, key: g.key, a1: absOfIso(g.from), a2: absOfIso(g.to) }; });
+    function dongAt(a) {
+      for (var i = 0; i < DG.length; i++) if (a >= DG[i].a1 && a <= DG[i].a2 && !leaveAtAbs(DG[i].key, a)) return DG[i].key;
+      return null;
+    }
 
     function qList(kind) {
       return people.filter(function (p) { return !p.core && CORE.indexOf(p.key) < 0 && p.section === 'rot' && effQ(p) === kind; })
@@ -111,7 +118,7 @@
       var days = {};
       for (var x = 1; x <= upTo; x++) {
         var mx = months[monthIdxOf(x)], dx = x - mx.base, Ox = out[mx.key];
-        if (Ox.svD[dx]) days[x] = Ox.svD[dx].id + '|' + (Ox.svD[dx].type === 'sp' ? 'p' : 'v');
+        if (Ox.svD[dx]) days[x] = Ox.svD[dx].id + '|' + (Ox.svD[dx].type === 'sp' ? 'p' : 'v') + (Ox.svD[dx].dg ? '|d' : '');
         else if (Ox.bk[dx]) days[x] = 'b:' + Ox.bk[dx].join(',');
       }
       function qs(q) { return { ptr: q.ptr, key: q.list.length ? q.list[q.ptr % q.list.length] : '', owed: q.owed.slice() }; }
@@ -138,6 +145,7 @@
           else {
             var pr = ent.split('|');
             O.svD[d] = { id: pr[0], type: pr[1] === 'p' ? 'sp' : 'sv' };
+            if (pr[2] === 'd') O.svD[d].dg = 1;
             if (CORE.indexOf(pr[0]) < 0 && byKey[pr[0]] && O.assigned.indexOf(pr[0]) < 0) O.assigned.push(pr[0]);
           }
         }
@@ -160,6 +168,12 @@
         var c = null;
         for (var ci = 0; ci < cands.length; ci++) if (!blockedAbs(cands[ci], a)) { c = cands[ci]; break; }
         if (c) { O.svD[d] = { id: c, type: 'sv' }; continue; }
+      }
+      var dk = dongAt(a);
+      if (dk) {
+        O.svD[d] = { id: dk, type: effQ(byKey[dk]) === 'g' ? 'sp' : 'sv', dg: 1 };
+        if (O.assigned.indexOf(dk) < 0) O.assigned.push(dk);
+        continue;
       }
       var green = idx % 3 === 2;
       idx++;
