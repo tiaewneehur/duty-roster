@@ -232,7 +232,13 @@
     if (!M.draft) return M.rows;
     var core = E.CORE.filter(function (id) { return !!st.byKey[id]; });
     var rest = st.data.people.filter(function (p) { return p.section === 'rot' && !p.core && core.indexOf(p.key) < 0; }).sort(function (a, b) { return (a.ord || 0) - (b.ord || 0); }).map(function (p) { return p.key; });
-    return core.concat(rest);
+    var all = core.concat(rest);
+    // คนนอกคิวหมุนเวียนที่มีเวรในเดือนนั้น (เช่น โดนดองเวร) ต้องขึ้นในชีทด้วย
+    M.rows.forEach(function (id) {
+      if (all.indexOf(id) >= 0) return;
+      for (var d = 1; d <= M.N; d++) { var r = M.roleOf(id, d); if (r === 'sv' || r === 'sp') { all.push(id); return; } }
+    });
+    return all;
   }
   function monthSheet(M, S, full) {
     var RR = full ? sheetRows(M) : M.rows;
@@ -325,7 +331,7 @@
   }
   function sheetPayload(M) {
     var rec = { get: function (o) { return o || {}; } };
-    var sh = monthSheet(M, rec, true), styles = [], idx = {};
+    var sh = monthSheet(M, rec), styles = [], idx = {};
     var rows = sh.rows.map(function (r) {
       return r.map(function (c) {
         if (!c) return null;
